@@ -11,46 +11,95 @@
 ;; You must not remove this notice, or any other, from this software.
 
 (ns clj-logging-config.test-log4j
-  (:import (org.apache.log4j PatternLayout Logger Level))
+  (:import (org.apache.log4j PatternLayout Logger Level SimpleLayout RollingFileAppender))
   (:use clojure.test
         clojure.contrib.logging
         clj-logging-config.log4j
-        clojure.contrib.with-ns))
+        clojure.contrib.with-ns)
+  (:require [clojure.java.io :as io]))
 
-(defmacro actual [& body]
-  `(with-out-str
-     (with-ns (create-ns (symbol "test"))
-       (clojure.core/refer-clojure)
-       (use 'clojure.contrib.logging)
-       ~@body)))
+(defmacro dolog [& body]
+  `(with-ns (create-ns (symbol "test"))
+     (clojure.core/refer-clojure)
+     (use 'clojure.contrib.logging)
+     ~@body))
 
-;; TODO: Investigate why logging causes two LFs
-(defn expected [s] (if (= s "") "" (str s "\n\n")))
-
-(use-fixtures :each (fn [f] (reset-logging)
-                      (f)
-                      (reset-logging)))
+(defmacro dotest [& body]
+  `(are [actual expected]
+        (= expected (with-out-str (dolog actual)))
+        ~@body))
 
 (deftest test-logging
-  (logger "test")
-  (are [e a] (= (expected e) (actual a))
+  (testing "Default logging"
+    (logger "test")
+    (dotest
+     (info "Here is a log message") "INFO - Here is a log message\n"
+     (warn "Here is a warning") "WARN - Here is a warning\n"
+     (debug "Debug messages are hidden by default") ""))
 
-       "INFO - Here is a log message"
-       (info "Here is a log message")
+  (testing "Logging at the DEBUG level"
+    (logger "test" :level Level/DEBUG)
+    (dotest
+     (info "Here is a log message") "INFO - Here is a log message\n"
+     (debug "Debug level messages are now shown") "DEBUG - Debug level messages are now shown\n"))
 
-       "WARN - Here is a warning"
-       (warn "Here is a warning")
+  (testing "Levels can also be specified with keywords"
+    (logger "test" :level :warn)
+    (dotest
+     (debug "Debug messages are hidden") ""
+     (info "So are log messages") ""
+     (warn "Only warnings") "WARN - Only warnings\n"
+     (error "And errors") "ERROR - And errors\n"))
 
-       ""
-       (debug "Debug messages are hidden by default")))
+  (testing "Setting a pattern for the PatternLayout"
+    (logger "test" :pattern PatternLayout/DEFAULT_CONVERSION_PATTERN)
+    (dotest
+     (info "Here is a log message") "Here is a log message\n"))
 
-(deftest test-logging-debug
-  (logger "test" :level Level/DEBUG)
-  (are [e a] (= (expected e) (actual a))
+  (testing "Setting a custom pattern for the PatternLayout"
+    (logger "test" :pattern "[%p] - %m")
+    (dotest
+     (info "Here is a log message") "[INFO] - Here is a log message"))
 
-       "INFO - Here is a log message"
-       (info "Here is a log message")
+  (testing "Setting a custom layout"
+    (logger "test" :layout (SimpleLayout.))
+    (dotest
+     (info "Here is a log message") "INFO - Here is a log message\n"))
 
-       "DEBUG - Debug level messages are now shown"
-       (debug "Debug level messages are now shown")))
+  (testing "We can even use a Clojure function as a layout"
+    (logger "test" :layout (fn [^org.apache.log4j.spi.LoggingEvent ev]
+                             (format "%s: %s" (.getLevel ev) (.getMessage ev))))
+    (dotest
+     (info "Try doing this in log4j.properties!") "INFO: Try doing this in log4j.properties!"))
 
+  (testing "But we can't set a :layout and a :pattern (because a :pattern implies a org.apache.log4j.PatternLayout)"
+    (is (thrown? Exception (logger "test" :pattern "%m" :layout (SimpleLayout.)))))
+
+  ;; One of the advantages of hosting Clojure on the JVM is that you can (and
+  ;; should) make use of functionality that already exists rather than
+  ;; re-implementing it in Clojure.
+  (testing "Setting an appender"
+    (logger "test" :appender (RollingFileAppender.)))
+
+  ;; But sometimes we want to quickly implement our own custom appender in Clojure
+  ;; which is painful to do in Java. This example uses println for testing
+  ;; purposes but there's no reason it couldn't do something more complex (like
+  ;; send a tweet).
+  (testing "Set a custom appender in Clojure"
+    (let [out (java.io.StringWriter.)]
+      (binding [*out* out]
+        (logger "test"
+                :appender (fn [^org.apache.log4j.spi.LoggingEvent ev]
+                            (println (format ">>> %s - %s" (.getLevel ev) (.getMessage ev)))))
+        (dolog (warn "Alert")))
+      (is (= ">>> WARN - Alert" (.readLine (io/reader (java.io.StringReader. (str out))))))))
+
+  ;; Filtering logging messages based on some complex criteria is something
+  ;; that's much easier in a functional language.
+  (testing "Filter out messages that contain 'password'"
+    (logger "test"
+            :pattern "%m"
+            :filter (fn [^org.apache.log4j.spi.LoggingEvent ev] (not (.contains (.getMessage ev) "password"))))
+    (dotest
+     (info "The user is billy") "The user is billy"
+     (info "The password is nighthawk") "")))

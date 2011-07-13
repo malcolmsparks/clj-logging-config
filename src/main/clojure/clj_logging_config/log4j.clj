@@ -33,7 +33,7 @@
 (defn create-repl-appender [^Layout layout]
   (proxy [AppenderSkeleton] []
     (append [^LoggingEvent ev]
-            (println (.format layout ev)))
+            (print (.format layout ev)))
     (close [] nil)))
 
 (defn create-appender [f]
@@ -46,39 +46,50 @@
   (proxy [Layout] []
     (format [ev] (formatter ev))))
 
+(defn as-level [level]
+  (cond
+   (keyword? level) (get {:debug Level/DEBUG
+                          :info Level/INFO
+                          :warn Level/WARN
+                          :error Level/ERROR
+                          :fatal Level/FATAL
+                          :off Level/OFF
+                          :trace Level/TRACE
+                          :all Level/ALL} level)
+   (instance? Level level) level))
+
 ;; To grok this, see http://briancarper.net/blog/579/keyword-arguments-ruby-clojure-common-lisp
 (defn loggers [& {:as args}]
   (doall
    (map
     (fn [[name {:keys [level appender pattern layout filter]}]]
+      (cond (and appender (or layout pattern))
+            (throw (IllegalStateException. "Cannot specify an :appender and one of :pattern and :layout"))
+            (and layout pattern)
+            (throw (IllegalStateException. "Cannot specify both :pattern and :layout")))
+
       (let [logger (Logger/getLogger ^String name)
+
             ^Layout actual-layout (cond
-                                   (and appender (or layout pattern))
-                                   (throw (Exception. "Cannot specify an :appender and one of :pattern and :layout"))
-
-                                   (and layout pattern)
-                                   (throw (Exception. "Cannot specify both :pattern and :layout"))
-
                                    (fn? layout) (create-layout layout)
                                    pattern (PatternLayout. pattern)
                                    layout layout)
-            actual-appender (cond
-                             (fn? appender) (create-appender appender)
-                             appender appender
-                             actual-layout (create-repl-appender actual-layout)
-                             :otherwise (create-repl-appender (SimpleLayout.)))]
+            ^Appender actual-appender (cond
+                                       (fn? appender) (create-appender appender)
+                                       appender appender
+                                       actual-layout (create-repl-appender actual-layout)
+                                       :otherwise (create-repl-appender (SimpleLayout.)))]
         (doto logger
-          (.addAppender (if filter (wrap-appender-with-filter actual-appender filter) actual-appender))
-          (.setLevel (or (cond
-                          (keyword? level) (get {:debug Level/DEBUG
-                                                 :info Level/INFO
-                                                 :warn Level/WARN
-                                                 :error Level/ERROR
-                                                 :fatal Level/FATAL
-                                                 :off Level/OFF
-                                                 :trace Level/TRACE
-                                                 :all Level/ALL} level)
-                          (instance? Level level) level) Level/INFO)))))
+          ;; For now we'll remove all the existing appenders, but in a future
+          ;; release we should support multiple appenders for each logger, plus
+          ;; additivity.
+          (.removeAllAppenders)
+          
+          (.addAppender (if filter
+                          (wrap-appender-with-filter actual-appender filter)
+                          actual-appender))
+          
+          (.setLevel (or (as-level level) Level/INFO)))))
     args)))
 
 (defmacro logger [& args]
@@ -87,6 +98,3 @@
         (string? (first args))
         `(loggers ~(first args) ~(apply hash-map (if args (rest args) {})))
         :otherwise (throw (IllegalArgumentException.))))
-
-
-
