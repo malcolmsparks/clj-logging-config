@@ -20,9 +20,85 @@ Start by using <code>:use</code> (or <code>:require</code>) in your namespace de
       (:use clojure.contrib.logging
             [clj-logging-config.log4j :only logger]))
 
-Configure the logging system declaring a logger.
+Configure the logging system declaring a logger with <code>set-logger!</code> and just start using it.
 
-    (logger)
+    (set-logger!)
+    (info "Just a plain logging message, you should see the level at the beginning")
+
+In Log4J it is common to set a pattern against the logger. Full syntax can be found in org.apache.log4j.PatternLayout. For example, to set a pattern which just displays the message, do this:
+
+    (set-logger! :pattern "%m%n")
+    (info "A logging message, just the message this time")
+
+Or this.
+
+    (set-logger! :pattern "%d - %m%n")
+    (info "A logging message with the date in front")
+
+In the same way you can set the level of the logger. For example, so that the logger only prints warnings, you can do this :-
+
+    (set-logger! :level :warn) 
+
+Or if you want to use the Log4J Java class, you can do that as well :-
+
+    (set-logger! :level org.apache.log4j.Level/WARN) 
+
+You can also set the appender to one of the appenders provided by the logging package you are using. For example, it it's Log4J you can do this :-
+
+    (set-logger! :appender (org.apache.log4j.DailyRollingFileAppender.))
+
+Or even provide your own appender function.
+
+    (set-logger! :appender (fn [ev] (println (:message ev))))
+
+You can also set filters in the same way. Filters are useful but rarely used in Log4J because they're a pain to configure - not now :-
+
+    (set-logger! :filter (fn [ev] (not (re-seq #"password" (:message ev)))))
+
+For filters and appenders the underlying logging event is converted to a Clojure map (with the original event bound to the <code>:event</code> key, should you need it)
+
+For completeness you can also set the additivity of the logger - the default is true but you can set it to false. Addivity is described in the Log4J user-guide - so we won't repeat it here.
+
+    (set-logger! :additivity false)
+
+It (almost) goes without saying that you can combine all these options together :-
+
+    (set-logger! :level :warn 
+                 :additivity false
+                 :pattern "%p - %m%n"
+                 :filter (constantly true))
+
+There are some combinations that doesn't make sense (such as using <code>:pattern</code> and <code>:layout</code> together). In these cases an exception will be thrown.
+
+## Logger names
+
+Java logging packages conventionally organise a hierarchy of loggers that mirrors the Java package hierarchy. The <code>clojure.contrib.logging</code> module follows this convention and so does <code>clj-logging-config<code>. If you don't specify a logger name it defaults to the current namespace when you use <code>set-logger!</code>. But you can override this if you need to.
+
+    (set-logger! "my-loggger" :level :info)
+
+## Setting multiple loggers
+
+A <code>log4j.properties</code> (or <code>log4j.xml</code>) file configures multiple loggers as the same time. You can too with <code>set-loggers!</code> :-
+
+    (set-loggers! 
+
+        "com.malcolmsparks.foo" 
+        {:level :info :pattern "%m"}
+
+        "com.malcolmsparks.bar" 
+        {:level :debug})
+                 
+
+## Why the bang?
+
+Remember that <code>set-logger!</code> mutates the configuration of logging in the JVM. That's why there's a '!' in the function name. It would be very nice if logging configuration could be set on a per-thread basis - that's just not how the Java logging packages are designed with everything as statics, something we must live with.
+
+## Appender names
+
+By default, appenders are added. The problem is that in Clojure you often recompile a namespace, so a new appender would get added every time. The library addresses this problem by giving every appender a name- if you don't specify it defaults to <code>_default</code>. But you can specify it if you want :-
+
+    (set-logger! :appender-name "access-log")
+
 
 
 
