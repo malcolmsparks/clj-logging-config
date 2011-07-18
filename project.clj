@@ -10,7 +10,7 @@
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
 
-(defproject clj-logging-config "1.0"
+(defproject clj-logging-config "1.1"
   :description "Easy logging configuration for Clojure."
 
   :dependencies [[org.clojure/clojure "1.2.0"]
