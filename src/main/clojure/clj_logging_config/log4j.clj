@@ -51,14 +51,14 @@
   ([^Appender delegate filterfn]
      (proxy [AppenderSkeleton] []
        (append [^LoggingEvent ev]
-               (when (filterfn (as-map ev)) (.append delegate ev)))
+               (when (filterfn (as-map ev)) (.doAppend ^Appender delegate ^LoggingEvent ev)))
        (getName [] (.getName delegate))
        (close [] (.close delegate)))))
 
 (defn wrap-appender-with-header-and-footer
   ([^Appender delegate header footer]
      (proxy [AppenderSkeleton] []
-       (append [^LoggingEvent ev] (.append delegate ev))
+       (append [^LoggingEvent ev] (.doAppend delegate ev))
        (getName [] (.getName delegate))
        (getHeader [] (if (fn? header) (header) (str header)))
        (getFooter [] (if (fn? footer) (footer) (str footer)))
@@ -92,14 +92,21 @@
       (wrap-appender-with-header-and-footer appender header footer)
       appender)))
 
+(defn ensure-appender [^Logger logger]
+  (if (empty? (enumeration-seq (.getAllAppenders logger)))
+    (if (or (= logger (Logger/getRootLogger))
+            (false? (.getAdditivity logger)))
+      (.addAppender logger (create-repl-appender (SimpleLayout.)))
+      (recur (.getParent logger)))))
+
 (defn ^{:private true}
   set-logger
   [[logger {:keys [name level writer pattern layout filter additivity header footer]
-            :or {name "_default" additivity true}}]]
+            :or {name "_default"}}]]
   (when (and layout pattern)
     (throw (IllegalStateException. "Cannot specify both :pattern and :layout")))
 
-  (let [logger (if (string? logger) (Logger/getLogger ^String logger) logger) 
+  (let [^Logger logger (if (string? logger) (Logger/getLogger ^String logger) logger) 
 
         ^Layout actual-layout
         (cond
@@ -112,19 +119,22 @@
         (cond
          (instance? Appender writer) writer
          (fn? writer) (create-appender writer name)
-         (instance? java.io.Writer writer) (WriterAppender. actual-layout writer)
+         (instance? java.io.Writer writer) (WriterAppender. actual-layout ^java.io.Writer writer)
          writer (throw (IllegalStateException. (format "Wrong type of appender: %s" (type writer))))
-         actual-layout (create-repl-appender actual-layout name)
-         :otherwise (create-repl-appender (SimpleLayout.) name))]
+         (= writer :repl) (create-repl-appender (if actual-layout actual-layout (SimpleLayout.)) name)
+         :otherwise nil)]
 
-    (if (nil? (.getName appender))
-      (.setName appender name))
+    (if appender
+      (when (nil? (.getName appender))
+        (.setName appender name)
+        (doto logger
+          (.removeAppender ^String name)
+          (.addAppender ((comp (wrap-for-filter filter) (wrap-for-header-or-footer header footer)) appender))
+          (.setLevel (or (as-level level) Level/INFO)))))
 
-    (doto logger
-      (.removeAppender name)
-      (.setAdditivity additivity)
-      (.addAppender ((comp (wrap-for-filter filter) (wrap-for-header-or-footer header footer)) appender))
-      (.setLevel (or (as-level level) Level/INFO)))))
+    (if additivity (.setAdditivity logger additivity))
+    (if level (.setLevel logger (as-level level)))
+    (ensure-appender logger)))
 
 ;; To grok this, see http://briancarper.net/blog/579/keyword-arguments-ruby-clojure-common-lisp
 (defn set-loggers! [& {:as args}]
