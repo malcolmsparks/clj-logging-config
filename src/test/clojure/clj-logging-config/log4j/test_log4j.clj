@@ -10,7 +10,7 @@
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
 
-(ns clj-logging-config.test-log4j
+(ns clj-logging-config.log4j.test-log4j
   (:import (org.apache.log4j PatternLayout Logger Level SimpleLayout RollingFileAppender))
   (:use clojure.test
         clojure.contrib.logging

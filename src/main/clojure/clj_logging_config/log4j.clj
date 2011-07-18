@@ -11,9 +11,11 @@
 ;; You must not remove this notice, or any other, from this software.
 
 (ns clj-logging-config.log4j
-  (:import (org.apache.log4j Logger ConsoleAppender EnhancedPatternLayout Level
-                             LogManager AppenderSkeleton Appender Layout
-                             SimpleLayout WriterAppender)))
+  (:import (org.apache.log4j
+            Logger ConsoleAppender EnhancedPatternLayout Level
+            LogManager AppenderSkeleton Appender Layout
+            SimpleLayout WriterAppender)
+           (java.io OutputStream)))
 
 (defn reset-logging []
   (LogManager/resetConfiguration))
@@ -70,14 +72,15 @@
 
 (defn as-level [level]
   (cond
-   (keyword? level) (get {:debug Level/DEBUG
-                          :info Level/INFO
-                          :warn Level/WARN
+   (keyword? level) (get {:all Level/ALL
+                          :debug Level/DEBUG
                           :error Level/ERROR
                           :fatal Level/FATAL
+                          :info Level/INFO
                           :off Level/OFF
                           :trace Level/TRACE
-                          :all Level/ALL} level)
+                          :warn Level/WARN
+                          } level)
    (instance? Level level) level))
 
 (defn wrap-for-filter [filterfn]
@@ -101,36 +104,46 @@
 
 (defn ^{:private true}
   set-logger
-  [[logger {:keys [name level writer pattern layout filter additivity header footer]
-            :or {name "_default"}}]]
+  [[logger {:keys [name level out encoding pattern layout filter additivity header footer]
+            :or {name "_default" encoding "UTF-8"}}]]
   (when (and layout pattern)
     (throw (IllegalStateException. "Cannot specify both :pattern and :layout")))
 
-  (let [^Logger logger (if (string? logger) (Logger/getLogger ^String logger) logger) 
+  (let [^Logger logger
+        (if (string? logger) (Logger/getLogger ^String logger) logger)
 
         ^Layout actual-layout
         (cond
          (fn? layout) (create-layout layout)
          pattern (EnhancedPatternLayout. pattern)
-         layout layout
-         :otherwise nil)
+         layout layout)
 
         ^Appender appender
         (cond
-         (instance? Appender writer) writer
-         (fn? writer) (create-appender writer name)
-         (instance? java.io.Writer writer) (WriterAppender. actual-layout ^java.io.Writer writer)
-         writer (throw (IllegalStateException. (format "Wrong type of appender: %s" (type writer))))
-         (= writer :repl) (create-repl-appender (if actual-layout actual-layout (SimpleLayout.)) name)
-         :otherwise nil)]
+         (instance? Appender out) out
+         (fn? out) (create-appender out name)
+
+         (instance? OutputStream out)
+         (doto (WriterAppender. actual-layout ^OutputStream out)
+           (.setEncoding encoding))
+
+         out
+         (throw (IllegalStateException.
+                 (format "Wrong type of appender: %s" (type out))))
+
+         (= out :repl)
+         (create-repl-appender
+          (if actual-layout actual-layout (SimpleLayout.))
+          name))]
 
     (if appender
       (when (nil? (.getName appender))
         (.setName appender name)
         (doto logger
           (.removeAppender ^String name)
-          (.addAppender ((comp (wrap-for-filter filter) (wrap-for-header-or-footer header footer)) appender))
-          (.setLevel (or (as-level level) Level/INFO)))))
+          (.addAppender ((comp (wrap-for-filter filter)
+                               (wrap-for-header-or-footer header footer))
+                         appender)))))
 
     (if additivity (.setAdditivity logger additivity))
     (if level (.setLevel logger (as-level level)))

@@ -11,7 +11,12 @@
 ;; You must not remove this notice, or any other, from this software.
 
 (ns clj-logging-config.jul
-  (:import (java.util.logging Logger Level LogManager Handler LogRecord Formatter SimpleFormatter)))
+  (:import (java.util.logging
+            Logger Level LogManager Handler LogRecord
+            Formatter SimpleFormatter StreamHandler)
+           (java.io OutputStream)))
+
+(set! *warn-on-reflection* true)
 
 (defn reset-logging []
   (.reset (LogManager/getLogManager)))
@@ -19,15 +24,7 @@
 (defn as-map [^LogRecord rec]
   (assoc (bean rec) :log-record rec))
 
-(defn wrap-handler-with-filter
-  [^Handler delegate filterfn]
-  (proxy [Handler] []
-    (publish [^LogRecord rec]
-             (when (filterfn (as-map rec)) (.publish delegate rec)))
-    (close [] (.close delegate))))
-
-(defn create-handler
-  [f]
+(defn create-handler [f]
   (proxy [Handler] []
     (.publish [^LogRecord rec] (f (as-map rec)))
     (close [] nil)))
@@ -42,6 +39,13 @@
     (publish [^LogRecord rec] (print (.format formatter rec)))
     (close [] nil)))
 
+(defn wrap-handler-with-filter
+  [^Handler delegate filterfn]
+  (proxy [Handler] []
+    (publish [^LogRecord rec]
+             (when (filterfn (as-map rec)) (.publish delegate rec)))
+    (close [] (.close delegate))))
+
 (defn as-level [level]
   (cond
    (keyword? level) (get {:all Level/ALL
@@ -55,31 +59,52 @@
                           :warning Level/WARNING} level)
    (instance? Level level) level))
 
+(defn wrap-for-filter [filterfn]
+  (fn [handler]
+    (if filterfn
+      (wrap-handler-with-filter handler filterfn)
+      handler)))
+
+(defn ensure-handler [^Logger logger]
+  (if (empty? (seq (.getHandlers logger)))
+    (if (or (= "" (.getName logger))
+            (false? (.getUseParentHandlers logger)))
+      (.addHandler logger (create-repl-handler (SimpleFormatter.)))
+      (recur (.getParent logger)))))
+
 (defn ^{:private true}
   set-logger
-  [[logger {:keys [handler-name level handler formatter filter use-parent-handlers]
-            :or {handler-name "_default" use-parent-handlers true}}]]
-  (cond (and handler formatter)
-        (throw (IllegalStateException. "Cannot specify an :handler and :formatter")))
+  [[logger {:keys [level out formatter filter use-parent-handlers]}]]
 
   (let [logger (Logger/getLogger ^String logger)
 
-        ^Formatter actual-formatter (cond
-                                     (fn? formatter) (create-formatter formatter)
-                                     formatter formatter)
+        ^Formatter actual-formatter
+        (cond
+         (fn? formatter) (create-formatter formatter)
+         formatter formatter)
 
-        ^Handler handler-delegate (cond
-                                   (fn? handler) (create-handler handler)
-                                   handler handler
-                                   actual-formatter (create-repl-appender actual-formatter)
-                                   :otherwise (create-repl-appender (SimpleFormatter.)))
-        ^Handler final-handler (cond
-                                filter (wrap-handler-with-filter handler-delegate filter)
-                                :otherwise handler-delegate)]
-    (doto logger
-      (.addHandler final-handler)
-      (.setUseParentHandlers use-parent-handlers)
-      (.setLevel (or (as-level level) Level/INFO)))))
+        ^Handler handler
+        (cond
+         (instance? Handler out) out
+         (fn? out) (create-handler out)
+         (instance? OutputStream out) (StreamHandler. out actual-formatter)
+
+         out
+         (throw (IllegalStateException.
+                 (format "Wrong type of handler: %s" (type out))))
+
+         (= out :repl)
+         (create-repl-handler
+          (if actual-formatter actual-formatter (SimpleFormatter.))))]
+
+    (if handler
+      (doto logger
+        (.addHandler ((wrap-for-filter filter) handler))
+        (.setLevel (or (as-level level) Level/INFO))))
+
+    (if use-parent-handlers (.setUseParentHandlers logger use-parent-handlers))
+    (if level (.setLevel logger level))
+    (ensure-handler logger)))
 
 ;; To grok this, see http://briancarper.net/blog/579/keyword-arguments-ruby-clojure-common-lisp
 (defn set-loggers! [& {:as args}]

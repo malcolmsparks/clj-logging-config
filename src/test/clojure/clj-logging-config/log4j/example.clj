@@ -10,7 +10,7 @@
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
 
-(ns clj-logging-config.example
+(ns clj-logging-config.log4j.example
   (:import (org.apache.log4j PatternLayout FileAppender))
   (:use clojure.contrib.logging
         [clj-logging-config.log4j :only [set-logger! set-loggers! reset-logging]]))
