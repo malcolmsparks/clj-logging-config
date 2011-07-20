@@ -24,9 +24,18 @@
      (use 'clojure.contrib.logging)
      ~@body))
 
+(defmacro capture-stdout [& body]
+  `(let [out# System/out
+         baos# (java.io.ByteArrayOutputStream.)
+         tempout# (java.io.PrintStream. baos#)]
+     (System/setOut tempout#)
+     ~@body
+     (System/setOut out#)
+     (String. (.toByteArray baos#))))
+
 (defmacro dotest [& body]
   `(are [actual expected]
-        (= expected (with-out-str (dolog actual)))
+        (= expected (capture-stdout (dolog actual)))
         ~@body))
 
 (deftest test-logging
@@ -67,8 +76,8 @@
      (info "Here is a log message") "INFO - Here is a log message\n"))
 
   (testing "We can even use a Clojure function as a layout"
-    (set-logger! "test" :layout (fn [^org.apache.log4j.spi.LoggingEvent ev]
-                             (format "%s: %s" (.getLevel ev) (.getMessage ev))))
+    (set-logger! "test" :layout (fn [ev]
+                                  (format "%s: %s" (:level ev) (:message ev))))
     (dotest
      (info "Try doing this in log4j.properties!") "INFO: Try doing this in log4j.properties!"))
 
@@ -79,7 +88,7 @@
   ;; should) make use of functionality that already exists rather than
   ;; re-implementing it in Clojure.
   (testing "Setting an appender"
-    (set-logger! "test" :appender (RollingFileAppender.)))
+    (set-logger! "test" :out (RollingFileAppender.)))
 
   ;; But sometimes we want to quickly implement our own custom appender in Clojure
   ;; which is painful to do in Java. This example uses println for testing
@@ -89,8 +98,8 @@
     (let [out (java.io.StringWriter.)]
       (binding [*out* out]
         (set-logger! "test"
-                :appender (fn [^org.apache.log4j.spi.LoggingEvent ev]
-                            (println (format ">>> %s - %s" (.getLevel ev) (.getMessage ev)))))
+                     :out (fn [ev]
+                            (println (format ">>> %s - %s" (:level ev) (:message ev)))))
         (dolog (warn "Alert")))
       (is (= ">>> WARN - Alert" (.readLine (io/reader (java.io.StringReader. (str out))))))))
 
@@ -98,8 +107,8 @@
   ;; that's much easier in a functional language.
   (testing "Filter out messages that contain 'password'"
     (set-logger! "test"
-            :pattern "%m"
-            :filter (fn [^org.apache.log4j.spi.LoggingEvent ev] (not (.contains (.getMessage ev) "password"))))
+                 :pattern "%m"
+                 :filter (fn [ev] (not (.contains (:message ev) "password"))))
     (dotest
      (info "The user is billy") "The user is billy"
      (info "The password is nighthawk") "")))

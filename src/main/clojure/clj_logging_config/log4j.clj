@@ -11,46 +11,73 @@
 ;; You must not remove this notice, or any other, from this software.
 
 (ns clj-logging-config.log4j
+  (:use clojure.contrib.pprint
+        clojure.contrib.logging)
   (:import (org.apache.log4j
             Logger ConsoleAppender EnhancedPatternLayout Level
             LogManager AppenderSkeleton Appender Layout
             SimpleLayout WriterAppender)
            (java.io OutputStream)))
 
-(defn reset-logging []
+(defn get-internal-logger []
+  (Logger/getLogger (name (ns-name 'clj-logging-config.log4j))))
+
+(defn- no-internal-appenders? []
+  (empty?
+   (enumeration-seq (.getAllAppenders (get-internal-logger)))))
+
+(defn- init-logging! []
+  (let [logger (get-internal-logger)
+        appender (proxy [WriterAppender] [(SimpleLayout.) System/out]
+                   (close [] nil))]
+    (.removeAllAppenders logger)
+    (doto appender
+      (.setImmediateFlush true))
+    (.addAppender logger appender)
+    (.setLevel logger Level/INFO)))
+
+(defn- ensure-internal-logging! []
+  (when (no-internal-appenders?) (init-logging!)))
+
+(defn reset-logging! []
   (LogManager/resetConfiguration))
 
 (defn as-map [^LoggingEvent ev]
   (assoc (bean ev) :event ev))
 
-(defn create-formatter-from-layout
+(defn create-appender-from-layout
   ([^Layout layout ^String name]
+     (ensure-internal-logging!)
+     (debug (format "Creating appender named %s from layout: %s" name layout))
      (proxy [AppenderSkeleton] []
-       (append [^LoggingEvent ev] (println (.format layout ev)))
-       (getName [] name)
+       (append [^LoggingEvent ev] (.print System/out (.format layout ev)))
        (close [] nil)))
   ([^Layout layout]
-     (create-formatter-from-layout layout nil)))
+     (create-appender-from-layout layout nil)))
 
 (defn create-appender
   ([f ^String name]
+     (ensure-internal-logging!)
+     (debug (format "Creating appender named %s" name))
      (proxy [AppenderSkeleton] []
        (append [^LoggingEvent ev] (f (as-map ev)))
-       (getName [] name)
        (close [] nil)))
   ([f] (create-appender f nil)))
 
-(defn create-repl-appender
+(defn create-console-appender
   ([^Layout layout ^String name]
+     (ensure-internal-logging!)
+     (debug (format "Creating console appender named %s" name))
      (proxy [AppenderSkeleton] []
-       (append [^LoggingEvent ev] (print (.format layout ev)))
-       (getName [] name)
+       (append [^LoggingEvent ev] (.print System/out (.format layout ev)))
        (close [] nil)))
   ([^Layout layout]
-     (create-repl-appender layout nil)))
+     (create-console-appender layout nil)))
 
 (defn wrap-appender-with-filter
   ([^Appender delegate filterfn]
+     (ensure-internal-logging!)
+     (debug "Creating filter appender")
      (proxy [AppenderSkeleton] []
        (append [^LoggingEvent ev]
                (when (filterfn (as-map ev)) (.doAppend ^Appender delegate ^LoggingEvent ev)))
@@ -59,6 +86,8 @@
 
 (defn wrap-appender-with-header-and-footer
   ([^Appender delegate header footer]
+     (ensure-internal-logging!)
+     (debug "Creating header/footer appender")
      (proxy [AppenderSkeleton] []
        (append [^LoggingEvent ev] (.doAppend delegate ev))
        (getName [] (.getName delegate))
@@ -79,8 +108,7 @@
                           :info Level/INFO
                           :off Level/OFF
                           :trace Level/TRACE
-                          :warn Level/WARN
-                          } level)
+                          :warn Level/WARN} level)
    (instance? Level level) level))
 
 (defn wrap-for-filter [filterfn]
@@ -95,22 +123,20 @@
       (wrap-appender-with-header-and-footer appender header footer)
       appender)))
 
-(defn ensure-appender [^Logger logger]
-  (if (empty? (enumeration-seq (.getAllAppenders logger)))
-    (if (or (= logger (Logger/getRootLogger))
-            (false? (.getAdditivity logger)))
-      (.addAppender logger (create-repl-appender (SimpleLayout.)))
-      (recur (.getParent logger)))))
+(defn as-logger [logger]
+  (if (string? logger) (Logger/getLogger ^String logger) logger))
 
 (defn ^{:private true}
   set-logger
-  [[logger {:keys [name level out encoding pattern layout filter additivity header footer]
-            :or {name "_default" encoding "UTF-8"}}]]
+  [[logger {:keys [name level out encoding pattern layout filter additivity header footer no-test]
+            :or {name "_default" level :info encoding "UTF-8" test :none}
+            :as args}]]
+  (ensure-internal-logging!)
+  (debug (format "Set logger: logger is %s, args is %s" logger args))
   (when (and layout pattern)
     (throw (IllegalStateException. "Cannot specify both :pattern and :layout")))
 
-  (let [^Logger logger
-        (if (string? logger) (Logger/getLogger ^String logger) logger)
+  (let [^Logger logger (as-logger logger)
 
         ^Layout actual-layout
         (cond
@@ -131,31 +157,66 @@
          (throw (IllegalStateException.
                  (format "Wrong type of appender: %s" (type out))))
 
-         (= out :repl)
-         (create-repl-appender
+         actual-layout
+         (create-appender-from-layout actual-layout name)
+
+         :otherwise
+         (create-console-appender
           (if actual-layout actual-layout (SimpleLayout.))
           name))]
 
-    (if appender
-      (when (nil? (.getName appender))
-        (.setName appender name)
-        (doto logger
-          (.removeAppender ^String name)
-          (.addAppender ((comp (wrap-for-filter filter)
-                               (wrap-for-header-or-footer header footer))
-                         appender)))))
+    (when (nil? (.getName appender))
+      (debug (format "Setting name %s against appender" name))
+      (.setName appender name))
+
+    (.removeAppender logger ^String name)
+    (debug (format "Adding appender named %s to logger %s" name (.getName logger)))
+    (.addAppender logger ((comp (wrap-for-filter filter)
+                                (wrap-for-header-or-footer header footer))
+                          appender))
 
     (if additivity (.setAdditivity logger additivity))
-    (if level (.setLevel logger (as-level level)))
-    (ensure-appender logger)))
+
+    ;; By default, the level is set explicitly, to ensure logging works.
+    (when (not (or (nil? level) (= level :inherit)))
+      (.setLevel logger (as-level level)))
+
+    ;; Test the logger
+    (when (not= test :none)
+      (. logger log Level/ALL (format "clj-logging-config: Testing logger %s... 1..2..3.." (.getName logger))))))
 
 ;; To grok this, see http://briancarper.net/blog/579/keyword-arguments-ruby-clojure-common-lisp
 (defn set-loggers! [& {:as args}]
   (doall (map set-logger args)))
 
-(defmacro set-logger! [& args]
-  (cond (or (keyword? (first args)) (empty? args))
-        `(set-loggers! (name (ns-name *ns*)) ~(apply hash-map args))
-        (string? (first args))
-        `(set-loggers! ~(first args) ~(apply hash-map (if args (rest args) {})))
+(defmacro set-logger! [& [logger & args :as allargs]]
+  (cond (or (empty? allargs) (keyword? logger))
+        `(set-loggers! (name (ns-name *ns*)) ~(apply hash-map allargs))
+        (string? logger)
+        `(set-loggers! ~logger ~(apply hash-map args))
         :otherwise (throw (IllegalArgumentException.))))
+
+(defmacro set-logger-level! [& args]
+  (case (count args)
+        2 `(.setLevel (as-logger logger) (as-level level))
+        1 `(.setLevel (as-logger (name (ns-name *ns*))) (as-level level))))
+
+(defmacro set-logger-additivity! [& args]
+  (case (count args)
+        2 `(.setAdditivity (as-logger logger) (as-level level))
+        1 `(.setAdditivity (as-logger (name (ns-name *ns*))) (as-level level))))
+
+(defn get-logging-config []
+  (map (fn [logger]
+         (-> logger
+             (update-in [:parent] (memfn getName))
+             (dissoc :loggerRepository)
+             (dissoc :hierarchy)
+             (update-in [:chainedPriority] str)
+             (update-in [:level] str)
+             (update-in [:effectiveLevel] str)
+             (update-in [:priority] str))) (sort-by :name (map bean (enumeration-seq (LogManager/getCurrentLoggers))))))
+
+(defn set-internal-logging-level! [level]
+  (.setLevel (get-internal-logger) (as-level level)))
+

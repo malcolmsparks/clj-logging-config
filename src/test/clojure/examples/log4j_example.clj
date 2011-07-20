@@ -10,15 +10,14 @@
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
 
-(ns clj-logging-config.log4j.example
+(ns examples.log4j-example
   (:import (org.apache.log4j PatternLayout FileAppender))
   (:use clojure.contrib.logging
-        [clj-logging-config.log4j :only [set-logger! set-loggers! reset-logging]]))
-
-;; If you get stuck you can reset the logging system with this
-(reset-logging)
+        clojure.contrib.pprint
+        [clj-logging-config.log4j :only [set-logger! set-loggers! reset-logging! get-logging-config set-internal-logging-level!]]))
 
 ;; Try these examples in a REPL.
+;; By default messages will go to standard out, not the REPL - so check your console.
 
 (set-logger!)
 (info "Just a plain logging message, you should see the level at the beginning")
@@ -28,3 +27,12 @@
 
 (set-logger! :pattern "%d - %m%n")
 (info "A logging message with the date in front")
+
+;; If you get stuck you can reset the logging system with this :-
+(reset-logging!)
+
+;; You can change the internal logging level for clj-logging-config list this :-
+(set-internal-logging-level! :debug)
+
+;; Sometimes printing out the current configuration can help diagnose problems :-
+(pprint (get-logging-config))
