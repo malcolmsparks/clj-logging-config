@@ -2,15 +2,11 @@
 
 A logging facility in Clojure is provided by the clojure.contrib.logging module. This searches the JVM classpath for one of the various logging frameworks to delegate logging statements to.
 
-While this is very useful, logging in Java has always been complicated to configure correctly. 
+While this is very useful, logging in Java has always been complicated to configure correctly. Fortunately, the two major logging 'back-ends' in Java (log4j and 'java.util.logging') support programmatic configuration so it is easy to replace the configuration file mechanisms with something that is easier and more flexible for Clojure programmers.
 
-Fortunately, the two major logging 'back-ends' in Java (log4j and 'java.util.logging') support programmatic configuration so it is easy to replace the configuration file mechanisms with something that is easier and more flexible for Clojure programmers.
+This library supports easy configuration via Clojure rather than Java properties files and XML. It is the author's belief that these confusing configuration formats reflect the static nature of the Java language itself and that Clojure should not inherit such complexity.
 
-Right now, only log4j is supported (since that it by far the most popular framework in use today). Hopefully support for java.util.logging will be added soon - if you need it now, then fork me!
-
-# Log4j
-
-This library supports easy configuration of log4j via Clojure rather than Java properties files and XML. It is the author's belief that these clunky configuration formats reflect the static nature of the Java language itself and that Clojure should not inherit such complexity.
+Right now, only log4j is (properly) supported (since that it by far the most popular framework in use today). Support for java.util.logging is being added and will be fully supported soon.
 
 ## Examples
 
@@ -87,7 +83,6 @@ A <code>log4j.properties</code> (or <code>log4j.xml</code>) file configures mult
 
         "com.malcolmsparks.bar" 
         {:level :debug})
-                 
 
 ## Why the bang?
 
@@ -95,9 +90,14 @@ Remember that <code>set-logger!</code> mutates the configuration of logging in t
 
 ## Appender names
 
-By default, appenders are added. The problem is that in Clojure you often recompile a namespace, so a new appender would get added every time. The library addresses this problem by giving every appender a name- if you don't specify it defaults to <code>_default</code>. But you can specify it if you want :-
+By default, appenders are added. The problem is that in some Clojure programming environments you recompile namespace frequently, which would cause a new appender to get added on each occurance. The library addresses this problem by giving every appender a name- if you don't specify it defaults to <code>_default</code>. When you call <code>set-logger!</code> it replaces any existing logger with the same name. If you want more control over this (for example, to add appenders to a prior logging configuration non-destructivly) you can specify the appender name explicitly :-
 
-    (set-logger! :appender-name "access-log")
+    (set-logger! :name "access-log")
+
+## Thread-local logging
+
+(Coming soon)
+
 
 
 
