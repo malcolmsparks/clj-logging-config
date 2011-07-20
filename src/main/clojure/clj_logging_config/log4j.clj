@@ -19,7 +19,9 @@
             SimpleLayout WriterAppender)
            (java.io OutputStream)))
 
-(defn get-internal-logger []
+(set! *warn-on-reflection* true)
+
+(defn ^Logger get-internal-logger []
   (Logger/getLogger (name (ns-name 'clj-logging-config.log4j))))
 
 (defn- no-internal-appenders? []
@@ -123,7 +125,7 @@
       (wrap-appender-with-header-and-footer appender header footer)
       appender)))
 
-(defn as-logger [logger]
+(defn ^Logger as-logger [logger]
   (if (string? logger) (Logger/getLogger ^String logger) logger))
 
 (defn ^{:private true}
@@ -224,7 +226,7 @@
 (defn get-logging-config []
   (map (fn [logger]
          (-> logger
-             (update-in [:parent] (memfn getName))
+             (update-in [:parent] (fn [^Logger parent] (.getName parent)))
              (dissoc :loggerRepository)
              (dissoc :hierarchy)
              (update-in [:chainedPriority] str)
