@@ -198,13 +198,12 @@
 
 (defmacro set-logger-level! [& args]
   (case (count args)
-        2 `(.setLevel (as-logger logger) (as-level level))
-        1 `(.setLevel (as-logger (name (ns-name *ns*))) (as-level level))))
+        2 `(.setLevel (as-logger ~(first args)) (as-level ~(second args)))
+        1 `(.setLevel (as-logger (name (ns-name *ns*))) (as-level ~(first args)))))
 
 (defmacro set-logger-additivity! [& args]
   (case (count args)
-        2 `(.setAdditivity (as-logger logger) (as-level level))
-        1 `(.setAdditivity (as-logger (name (ns-name *ns*))) (as-level level))))
+        2 `(.setAdditivity (as-logger ~(first args)) ~(second args))))
 
 (defn get-logging-config []
   (map (fn [logger]

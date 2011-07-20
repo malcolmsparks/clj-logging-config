@@ -14,7 +14,7 @@
   (:import (org.apache.log4j PatternLayout FileAppender))
   (:use clojure.contrib.logging
         clojure.contrib.pprint
-        [clj-logging-config.log4j :only [set-logger! set-loggers! reset-logging! get-logging-config set-internal-logging-level!]]))
+        clj-logging-config.log4j))
 
 ;; Try these examples in a REPL.
 ;; By default messages will go to standard out, not the REPL - so check your console.
