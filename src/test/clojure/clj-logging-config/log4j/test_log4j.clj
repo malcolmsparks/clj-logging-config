@@ -14,6 +14,7 @@
   (:import (org.apache.log4j PatternLayout Logger Level SimpleLayout RollingFileAppender))
   (:use clojure.test
         clojure.contrib.logging
+        clojure.contrib.pprint
         clj-logging-config.log4j
         clojure.contrib.with-ns)
   (:require [clojure.java.io :as io]))
@@ -37,6 +38,10 @@
   `(are [actual expected]
         (= expected (capture-stdout (dolog actual)))
         ~@body))
+
+(use-fixtures :each (fn [f]
+                      (reset-logging!)
+                      (f)))
 
 (deftest test-logging
   (testing "Default logging"

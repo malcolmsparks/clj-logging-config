@@ -175,11 +175,11 @@
                                 (wrap-for-header-or-footer header footer))
                           appender))
 
-    (if additivity (.setAdditivity logger additivity))
-
     ;; By default, the level is set explicitly, to ensure logging works.
     (when (not (or (nil? level) (= level :inherit)))
       (.setLevel logger (as-level level)))
+
+    (if additivity (.setAdditivity logger additivity))
 
     ;; Test the logger
     (when (not= test :none)
@@ -191,19 +191,35 @@
 
 (defmacro set-logger! [& [logger & args :as allargs]]
   (cond (or (empty? allargs) (keyword? logger))
-        `(set-loggers! (name (ns-name *ns*)) ~(apply hash-map allargs))
+        `(set-loggers! (name (ns-name ~*ns*)) ~(apply hash-map allargs))
         (string? logger)
         `(set-loggers! ~logger ~(apply hash-map args))
         :otherwise (throw (IllegalArgumentException.))))
 
-(defmacro set-logger-level! [& args]
-  (case (count args)
-        2 `(.setLevel (as-logger ~(first args)) (as-level ~(second args)))
-        1 `(.setLevel (as-logger (name (ns-name *ns*))) (as-level ~(first args)))))
+(defn _set-logger-level! [logger level]
+  (ensure-internal-logging!)
+  (debug (format "Set level for %s to %s" logger level))
+  (.setLevel (as-logger logger) (as-level level)))
 
-(defmacro set-logger-additivity! [& args]
-  (case (count args)
-        2 `(.setAdditivity (as-logger ~(first args)) ~(second args))))
+(defmacro set-logger-level!
+  ([level]
+     `(set-logger-level! (name (ns-name ~*ns*)) ~level))
+  ([logger level]
+
+     `(do
+        (_set-logger-level! ~logger ~level))))
+
+(defn _set-logger-additivity! [logger value]
+  (ensure-internal-logging!)
+  (debug (format "Set additivity for %s to %s" logger value))
+  (.setAdditivity (as-logger logger) value))
+
+(defmacro set-logger-additivity!
+  ([value]
+     `(set-logger-additivity! (name (ns-name ~*ns*)) ~value))
+  ([logger value]
+     `(do
+        (_set-logger-additivity! ~logger ~value))))
 
 (defn get-logging-config []
   (map (fn [logger]
@@ -214,8 +230,11 @@
              (update-in [:chainedPriority] str)
              (update-in [:level] str)
              (update-in [:effectiveLevel] str)
+             (update-in [:allAppenders] enumeration-seq)
              (update-in [:priority] str))) (sort-by :name (map bean (enumeration-seq (LogManager/getCurrentLoggers))))))
 
 (defn set-internal-logging-level! [level]
-  (.setLevel (get-internal-logger) (as-level level)))
+  (ensure-internal-logging!)
+  (.setLevel (get-internal-logger) (as-level level))
+  (debug (format "Set internal logging level to %s" level)))
 

@@ -25,13 +25,24 @@
 (set-logger! :pattern "%m%n")
 (info "A logging message, just the message this time")
 
-(set-logger! :pattern "%d - %m%n")
+(set-logger! :pattern "%d - [%p] %c - %m%n")
+(info "A fuller logging message with the date in front")
+
+(set-logger-level! :info)
 (info "A logging message with the date in front")
+
+(set-logger-level! :warn)
+(info "You won't see me")
+(warn "But you'll see me!")
+
+(set-logger-level! :debug)
+(debug "Now you can see a debug message")
 
 ;; If you get stuck you can reset the logging system with this :-
 (reset-logging!)
 
-;; You can change the internal logging level for clj-logging-config list this :-
+;; If you want to see what is going on, try setting the clj-logging-config's own
+;; internal logging to debug :-
 (set-internal-logging-level! :debug)
 
 ;; Sometimes printing out the current configuration can help diagnose problems :-
