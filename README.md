@@ -86,7 +86,7 @@ A <code>log4j.properties</code> (or <code>log4j.xml</code>) file configures mult
 
 ## Why the bang?
 
-Remember that <code>set-logger!</code> mutates the configuration of logging in the JVM. That's why there's a '!' in the function name. It would be very nice if logging configuration could be set on a per-thread basis - that's just not how the Java logging packages are designed with everything as statics, something we must live with.
+Remember that <code>set-logger!</code> mutates the configuration of logging in the JVM. That's why there's a '!' in the function name, to indicate the side-effect. It would be very nice if logging configuration could be set on a per-thread basis (see below) - that's just not how the Java logging packages are designed with everything as statics, something we must live with.
 
 ## Appender names
 
@@ -94,11 +94,32 @@ By default, appenders are added. The problem is that in some Clojure programming
 
     (set-logger! :name "access-log")
 
-## Thread-local logging
+## Design notes
 
-(Coming soon)
+There are two broadly equivalent modules to support both log4j and java.util.logging. If you need to use both simultaneously (eg. as part of an integrated system where don't have control over which logging API your dependencies use), it is strongly suggested you use the bridging capabilities of slf4j. 
 
+The primary author has resisted the temptation to merge the code for the two packages into a single system- this would make the code easier to maintain but at the expense of being easy to read. This would favour optimising the experience of the author rather than the readers and maintainers. Since I expect and hope there to be more readers than authors, I have avoided this step. Also, there are subtle differences between log4j and java.util.logging and it is better that the code to support them is held in separate namespaces that share nothing between them.
 
+The upshot of this design is that the user makes a decision about which logging package to use in the code itself. Since this package concerns logging configuration rather than the logging API, it is hoped that the cost of transitioning between java.util.logging and log4j would be minimal (and that few people would be bothered to do that anyway).
 
+Again, if you just can't make up your mind about which package to use and need to reduce cost of change, or have to integrate code which uses different logging packages, then choose slf4j and use bridging adapters. Then use clj-logging-config to configure the backend you have chosen for slf4j. The author has built a system with clj-logging-config and slf4j and both work fine together.
 
+## Thread-local logging (TODO)
+
+Often you want to log on a per-thread (or per-agent) basis. Perhaps you are writing a job processing system and want a separate log file for each job. You can't do this with the Java logging APIs but you can write your own _appender_ (or _handler_ in the case of java.util.logging) to accomplish this and configure it into the logging system.
+
+    (with-logging
+      {:out (io/writer (io/file "job.log"))
+       :level :debug}
+      (debug "This is some debug that goes to job.log")
+    )
+
+This works by creating a special appender at the root logger level. The is uses a filter that checks logging messages against a level. To achieve isolation with other loggers it binds in a new hierarchy which is used by the clojure logging API.
+
+## Reading the code
+
+If you want to dive into the code to see how it works, ensure you are familiar with destructuring in Clojure. If not, these links will help you :-
+
+* [[http://blog.jayfields.com/2010/07/clojure-destructuring.html]]
+* [[http://briancarper.net/blog/579/keyword-arguments-ruby-clojure-common-lisp]]
 

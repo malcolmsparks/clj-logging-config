@@ -19,8 +19,6 @@
             SimpleLayout WriterAppender)
            (java.io OutputStream)))
 
-(set! *warn-on-reflection* true)
-
 (defn ^Logger get-internal-logger []
   (Logger/getLogger (name (ns-name 'clj-logging-config.log4j))))
 
@@ -181,13 +179,13 @@
     (when (not (or (nil? level) (= level :inherit)))
       (.setLevel logger (as-level level)))
 
+    ;; Whether events should propagate up the hierarchy.
     (if additivity (.setAdditivity logger additivity))
 
     ;; Test the logger
     (when (not= test :none)
       (. logger log Level/ALL (format "clj-logging-config: Testing logger %s... 1..2..3.." (.getName logger))))))
 
-;; To grok this, see http://briancarper.net/blog/579/keyword-arguments-ruby-clojure-common-lisp
 (defn set-loggers! [& {:as args}]
   (doall (map set-logger args)))
 
