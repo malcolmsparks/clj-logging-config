@@ -16,8 +16,8 @@
   (:import (org.apache.log4j
             Logger ConsoleAppender EnhancedPatternLayout Level
             LogManager AppenderSkeleton Appender Layout
-            SimpleLayout WriterAppender)
-           (java.io OutputStream)))
+            SimpleLayout WriterAppender FileAppender)
+           (java.io OutputStream Writer)))
 
 (defn ^Logger get-internal-logger []
   (Logger/getLogger (name (ns-name 'clj-logging-config.log4j))))
@@ -45,24 +45,14 @@
 (defn as-map [^LoggingEvent ev]
   (assoc (bean ev) :event ev))
 
-(defn create-appender-from-layout
-  ([^Layout layout ^String name]
-     (ensure-internal-logging!)
-     (debug (format "Creating appender named %s from layout: %s" name layout))
-     (proxy [AppenderSkeleton] []
-       (append [^LoggingEvent ev] (.print System/out (.format layout ev)))
-       (close [] nil)))
-  ([^Layout layout]
-     (create-appender-from-layout layout nil)))
-
-(defn create-appender
+(defn create-appender-adapter
   ([f ^String name]
      (ensure-internal-logging!)
      (debug (format "Creating appender named %s" name))
      (proxy [AppenderSkeleton] []
        (append [^LoggingEvent ev] (f (as-map ev)))
        (close [] nil)))
-  ([f] (create-appender f nil)))
+  ([f] (create-appender-adapter f nil)))
 
 (defn create-console-appender
   ([^Layout layout ^String name]
@@ -133,6 +123,9 @@
             :as args}]]
   (ensure-internal-logging!)
   (debug (format "Set logger: logger is %s, args is %s" logger args))
+
+  ;; Some assertion rules
+
   (when (and layout pattern)
     (throw (IllegalStateException. "Cannot specify both :pattern and :layout")))
 
@@ -147,18 +140,28 @@
         ^Appender appender
         (cond
          (instance? Appender out) out
-         (fn? out) (create-appender out name)
+         (fn? out) (create-appender-adapter out name)
 
          (instance? OutputStream out)
-         (doto (WriterAppender. actual-layout ^OutputStream out)
-           (.setEncoding encoding))
+         (do
+           (when (not actual-layout)
+             (throw (Exception. "When specifying an OutputStream, a layout must also be specified.")))
+           (doto (WriterAppender. actual-layout ^OutputStream out)
+             (.setEncoding encoding)))
+
+         (instance? Writer out)
+         (do
+           (when (not actual-layout)
+             (throw (Exception. "When specifying an Writer, a layout must also be specified.")))
+           (doto (WriterAppender. actual-layout ^Writer out)
+             (.setEncoding encoding)))
 
          out
          (throw (IllegalStateException.
                  (format "Wrong type of appender: %s" (type out))))
 
          actual-layout
-         (create-appender-from-layout actual-layout name)
+         (create-console-appender actual-layout name)
 
          :otherwise
          (create-console-appender
