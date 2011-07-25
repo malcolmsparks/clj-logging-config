@@ -20,43 +20,27 @@
 ;; By default messages will go to standard out, not the REPL - so check your
 ;; console.
 
-(reset-logging!)
-(set-internal-logging-level! :finest)
-
-
-(pprint (get-logging-config))
-
-
 (set-logger!)
 (info "Just a plain logging message, you should see the level at the beginning")
+(info "Just a plain logging message, you should see the level at the beginning")
 
-(comment
-  (set-logger!)
-  (info "Just a plain logging message, you should see the level at the beginning")
+(set-logger-level! :info)
+(info "An info message")
 
-  (set-logger! :pattern "%m%n")
-  (info "A logging message, just the message this time")
+(set-logger-level! :warn)
+(info "You won't see me")
+(warn "But you'll see me!")
 
-  (set-logger! :pattern "%d - [%p] %c - %m%n")
-  (info "A fuller logging message with the date in front")
-
-  (set-logger-level! :info)
-  (info "A logging message with the date in front")
-
-  (set-logger-level! :warn)
-  (info "You won't see me")
-  (warn "But you'll see me!")
-
-  (set-logger-level! :debug)
-  (debug "Now you can see a debug message")
+(set-logger-level! :debug)
+(debug "Now you can see a debug message")
 
 ;; If you get stuck you can reset the logging system with this :-
-  (reset-logging!)
+(reset-logging!)
 
 ;; If you want to see what is going on, try setting the clj-logging-config's own
 ;; internal logging to debug :-
-  (set-internal-logging-level! :debug)
+(set-internal-logging-level! :debug)
 
 ;; Sometimes printing out the current configuration can help diagnose problems :-
-  (pprint (get-logging-config))
-)
+(pprint (get-logging-config))
+

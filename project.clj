@@ -14,8 +14,7 @@
   :description "Easy logging configuration for Clojure."
 
   :dependencies [[org.clojure/clojure "1.2.0"]
-                 [org.clojure/clojure-contrib "1.2.0"]
-                 [log4j/log4j "1.2.16"]]
+                 [org.clojure/clojure-contrib "1.2.0"]]
   :dev-dependencies [[swank-clojure "1.2.0"]]
 
   :source-path "src/main/clojure"

@@ -15,7 +15,7 @@
         clojure.contrib.logging)
   (:import (java.util.logging
             Logger Level LogManager Handler LogRecord
-            Formatter SimpleFormatter ConsoleHandler)
+            Formatter SimpleFormatter ConsoleHandler StreamHandler)
            (java.io OutputStream)))
 
 (set! *warn-on-reflection* true)
@@ -30,10 +30,11 @@
 (defn- init-logging! []
   (let [logger (get-internal-logger)
         handler (ConsoleHandler.)]
+    (.setLevel handler Level/ALL)
     (for [h (.getHandlers logger)]
       (.removeHandler logger h))
     (.addHandler logger handler)
-    (.setLevel logger Level/INFO)))
+    (.setLevel logger Level/FINE)))
 
 (defn- ensure-internal-logging! []
   (when (no-internal-handlers?) (init-logging!)))
@@ -55,9 +56,10 @@
 
 (defn create-console-handler
   [^Formatter formatter]
-  (proxy [Handler] []
-    (publish [^LogRecord rec] (print (.format formatter rec)))
-    (close [] nil)))
+  (doto
+      (ConsoleHandler.)
+    (.setFormatter formatter)
+    (.setLevel Level/ALL)))
 
 (defn wrap-handler-with-filter
   [^Handler delegate filterfn]
@@ -78,7 +80,8 @@
                           :info Level/INFO
                           :off Level/OFF
                           :severe Level/SEVERE
-                          :warning Level/WARNING} level)
+                          :warning Level/WARNING
+                          :warn Level/WARNING} level)
    (instance? Level level) level))
 
 (defn wrap-for-filter [filterfn]
@@ -88,12 +91,13 @@
       handler)))
 
 (defn ^Logger as-logger [logger]
+  (assert (not (nil? logger)))
   (if (string? logger) (Logger/getLogger ^String logger) logger))
 
 (defn ^{:private true}
   set-logger
-  [[logger {:keys [level out encoding formatter filter use-parent-handlers no-test]
-            :or {level :info encoding "UTF-8" test :none}
+  [[logger {:keys [level out encoding formatter filter use-parent-handlers test]
+            :or {level :info encoding "UTF-8" test true}
             :as args}]]
 
   (ensure-internal-logging!)
@@ -104,14 +108,18 @@
         ^Formatter actual-formatter
         (cond
          (fn? formatter) (create-formatter formatter)
-         formatter formatter)
+         formatter formatter
+         :otherwise (proxy [Formatter] []
+                      (format [^LogRecord lr] (format "[%s] %s\n" (str (.getLevel lr)) (.getMessage lr)))))
 
         ^Handler handler
         (cond
          (instance? Handler out) out
          (fn? out) (create-handler out)
-         ;; TODO: StreamHandlers don't auto flush...
-         (instance? OutputStream out) (StreamHandler. out actual-formatter)
+         (instance? OutputStream out) (proxy [StreamHandler] [^OutputStream out ^Formatter actual-formatter]
+                                        (publish [^LogRecord lr]
+                                                 (.publish ^StreamHandler this lr)
+                                                 (.flush ^StreamHandler this)))
 
          out
          (throw (IllegalStateException.
@@ -121,9 +129,11 @@
          (create-console-handler
           (if actual-formatter actual-formatter (SimpleFormatter.))))]
 
-    (debug (format "Adding handler to logger %s" (.getName logger)))
-    (for [h (.getHandlers logger)]
+    (doseq [h (.getHandlers logger)]
+      (debug (format "Removing handler from logger %s" (.getName logger)))
       (.removeHandler logger h))
+
+    (debug (format "Adding handler to logger %s" (.getName logger)))
     (.addHandler logger ((wrap-for-filter filter) handler))
 
     ;; By default, the level is set explicitly, to ensure logging works.
@@ -134,7 +144,7 @@
     (if use-parent-handlers (.setUseParentHandlers logger use-parent-handlers))
 
     ;; Test the logger
-    (when (not= test :none)
+    (when (true? test)
       (. logger log Level/ALL (format "clj-logging-config: Testing logger %s... 1..2..3.." (.getName logger))))))
 
 (defn set-loggers! [& {:as args}]
@@ -154,9 +164,8 @@
 
 (defmacro set-logger-level!
   ([level]
-     `(set-logger-level! (name (ns-name ~*ns*)) ~level))
+     `(_set-logger-level! (name (ns-name ~*ns*)) ~level))
   ([logger level]
-
      `(do
         (_set-logger-level! ~logger ~level))))
 
@@ -167,7 +176,7 @@
 
 (defmacro set-logger-use-parent-handlers!
   ([value]
-     `(set-logger-use-parent-handlers! (name (ns-name ~*ns*)) ~value))
+     `(_set-logger-use-parent-handlers! (name (ns-name ~*ns*)) ~value))
   ([logger value]
      `(do
         (_set-logger-use-parent-handlers! ~logger ~value))))
@@ -176,7 +185,7 @@
   (letfn [(as-map [o] (if o (bean o) nil))]
     (let [lm (LogManager/getLogManager)]
       (for [name (enumeration-seq (. lm getLoggerNames))]
-        (if-let [logger (. lm getLogger name)]
+        (if-let [logger (Logger/getLogger name)]
           {:name name
            :logger logger
            :level (str (. logger getLevel))
