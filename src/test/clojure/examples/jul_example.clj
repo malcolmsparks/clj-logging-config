@@ -11,7 +11,6 @@
 ;; You must not remove this notice, or any other, from this software.
 
 (ns examples.jul-example
-
   (:use clojure.contrib.logging
         clojure.contrib.pprint
         clj-logging-config.jul))
@@ -21,26 +20,32 @@
 ;; console.
 
 (set-logger!)
-(info "Just a plain logging message, you should see the level at the beginning")
-(info "Just a plain logging message, you should see the level at the beginning")
-
+(warn "Just a plain logging message, you should see the level at the beginning")
 (set-logger-level! :info)
-(info "An info message")
 
-(set-logger-level! :warn)
-(info "You won't see me")
-(warn "But you'll see me!")
+(comment
+  (set-logger!)
+  (info "Just a plain logging message, you should see the level at the beginning")
+  (info "Just a plain logging message, you should see the level at the beginning")
 
-(set-logger-level! :debug)
-(debug "Now you can see a debug message")
+  (set-logger-level! :info)
+  (info "An info message")
+
+  (set-logger-level! :warn)
+  (info "You won't see me")
+  (warn "But you'll see me!")
+
+  (set-logger-level! :debug)
+  (debug "Now you can see a debug message")
 
 ;; If you get stuck you can reset the logging system with this :-
-(reset-logging!)
+  (reset-logging!)
 
 ;; If you want to see what is going on, try setting the clj-logging-config's own
 ;; internal logging to debug :-
-(set-internal-logging-level! :debug)
+  (set-internal-logging-level! :debug)
 
 ;; Sometimes printing out the current configuration can help diagnose problems :-
-(pprint (get-logging-config))
+  (pprint (get-logging-config))
 
+)

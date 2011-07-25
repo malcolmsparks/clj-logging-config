@@ -11,7 +11,7 @@
 ;; You must not remove this notice, or any other, from this software.
 
 (ns clj-logging-config.jul.test-jul
-  (:import (java.util.logging Logger Level SimpleFormatter))
+  (:import (java.util.logging Logger Level SimpleFormatter ConsoleHandler))
   (:use clojure.test
         clojure.contrib.logging
         clojure.contrib.pprint
@@ -26,12 +26,13 @@
      ~@body))
 
 (defmacro capture-stderr [& body]
-  `(let [err# System/err
+  `(let [old# System/err
          baos# (java.io.ByteArrayOutputStream.)
-         temperr# (java.io.PrintStream. baos#)]
-     (System/setErr temperr#)
+         new# (java.io.PrintStream. baos#)]
+     (System/setErr new#)
      ~@body
-     (System/setErr err#)
+     (.flush new#)
+     (System/setErr old#)
      (String. (.toByteArray baos#))))
 
 (defmacro dotest [& body]
@@ -41,8 +42,10 @@
 
 (use-fixtures :each (fn [f]
                       (reset-logging!)
-                      ;; Disabling the tests for now.
                       (comment (f))))
+
+;; These tests don't yet pass and to be honest I've wasted too many hours of my
+;; life trying to fix them. I'm long since past caring.
 
 (deftest test-logging
   (testing "Default logging"
@@ -91,7 +94,7 @@
                      :out (fn [ev]
                             (println (format ">>> %s - %s" (:level ev) (:message ev)))))
         (dolog (warn "Alert")))
-      (is (= ">>> WARN - Alert" (.readLine (io/reader (java.io.StringReader. (str out))))))))
+      (is (= ">>> WARN - Alert" (.readLine ^java.io.BufferedReader (io/reader (java.io.StringReader. (str out))))))))
 
   ;; Filtering logging messages based on some complex criteria is something
   ;; that's much easier in a functional language.

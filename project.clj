@@ -10,13 +10,14 @@
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
 
-(defproject clj-logging-config "1.4"
+(defproject clj-logging-config "1.5"
   :description "Easy logging configuration for Clojure."
 
   :dependencies [[org.clojure/clojure "1.2.0"]
                  [org.clojure/clojure-contrib "1.2.0"]]
-  :dev-dependencies [[swank-clojure "1.2.0"]]
-
+  :dev-dependencies [[swank-clojure "1.2.0"]
+                     [log4j/log4j "1.2.16"]
+                     ]
   :source-path "src/main/clojure"
   :test-path "src/test/clojure"
   :target-dir "target/"
