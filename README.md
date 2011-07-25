@@ -123,3 +123,6 @@ If you want to dive into the code to see how it works, ensure you are familiar w
 * [[http://blog.jayfields.com/2010/07/clojure-destructuring.html]]
 * [[http://briancarper.net/blog/579/keyword-arguments-ruby-clojure-common-lisp]]
 
+## License
+
+This library is dual-licensed under the Eclipse Public License, Version 1.0 and the AGPL version 3. Use whichever one suits your need.
