@@ -118,8 +118,8 @@
 
 (defn ^{:private true}
   set-logger
-  [[logger {:keys [name level out encoding pattern layout filter additivity header footer no-test]
-            :or {name "_default" level :info encoding "UTF-8" test :none}
+  [[logger {:keys [name level out encoding pattern layout filter additivity header footer test]
+            :or {name "_default" level :info encoding "UTF-8" test true}
             :as args}]]
   (ensure-internal-logging!)
   (debug (format "Set logger: logger is %s, args is %s" logger args))
@@ -186,7 +186,7 @@
     (if additivity (.setAdditivity logger additivity))
 
     ;; Test the logger
-    (when (not= test :none)
+    (when (true? test)
       (. logger log Level/ALL (format "clj-logging-config: Testing logger %s... 1..2..3.." (.getName logger))))))
 
 (defn set-loggers! [& {:as args}]
