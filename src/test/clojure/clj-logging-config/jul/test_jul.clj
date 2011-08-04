@@ -1,19 +1,20 @@
-;; clj-logging-config - Easy logging configuration for Clojure.
+;; clj-logging-config - Logging configuration for Clojure.
 
 ;; by Malcolm Sparks
 
 ;; Copyright (c) Malcolm Sparks. All rights reserved.
-;; The use and distribution terms for this software are covered by the
-;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
-;; which can be found in the file epl-v10.html at the root of this distribution.
-;; By using this software in any fashion, you are agreeing to be bound by
-;; the terms of this license.
-;; You must not remove this notice, or any other, from this software.
+
+;; The use and distribution terms for this software are covered by the Eclipse
+;; Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php) which can
+;; be found in the file epl-v10.html at the root of this distribution.  By using
+;; this software in any fashion, you are agreeing to be bound by the terms of
+;; this license.  You must not remove this notice, or any other, from this
+;; software.
 
 (ns clj-logging-config.jul.test-jul
   (:import (java.util.logging Logger Level SimpleFormatter ConsoleHandler))
   (:use clojure.test
-        clojure.contrib.logging
+        clojure.tools.logging
         clojure.contrib.pprint
         clj-logging-config.jul
         clojure.contrib.with-ns)
@@ -22,7 +23,7 @@
 (defmacro dolog [& body]
   `(with-ns (create-ns (symbol "test"))
      (clojure.core/refer-clojure)
-     (use 'clojure.contrib.logging)
+     (use 'clojure.tools.logging)
      ~@body))
 
 (defmacro capture-stderr [& body]

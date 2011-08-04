@@ -1,25 +1,29 @@
-;; clj-logging-config - Easy logging configuration for Clojure.
+;; clj-logging-config - Logging configuration for Clojure.
 
 ;; by Malcolm Sparks
 
 ;; Copyright (c) Malcolm Sparks. All rights reserved.
 
-;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
-;; which can be found in the file epl-v10.html at the root of this distribution.
-;; By using this software in any fashion, you are agreeing to be bound by
-;; the terms of this license.
-;; You must not remove this notice, or any other, from this software.
+;; The use and distribution terms for this software are covered by the Eclipse
+;; Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php) which can
+;; be found in the file epl-v10.html at the root of this distribution.  By using
+;; this software in any fashion, you are agreeing to be bound by the terms of
+;; this license.  You must not remove this notice, or any other, from this
+;; software.
 
 (ns clj-logging-config.log4j
   (:use clojure.contrib.pprint
-        clojure.contrib.logging)
+        clojure.tools.logging)
+  (:require [clojure.java.io :as io])
   (:import (org.apache.log4j
             Logger ConsoleAppender EnhancedPatternLayout Level
-            LogManager AppenderSkeleton Appender Layout
-            SimpleLayout WriterAppender FileAppender)
-           (java.io OutputStream Writer)))
+            LogManager AppenderSkeleton Appender Layout Hierarchy
+            SimpleLayout WriterAppender FileAppender NDC MDC)
+           (org.apache.log4j.spi
+            RepositorySelector DefaultRepositorySelector RootLogger)
+           (java.io OutputStream Writer File)))
 
-(defn ^Logger get-internal-logger []
+(defn ^Logger get-config-logger []
   (Logger/getLogger (name (ns-name 'clj-logging-config.log4j))))
 
 (defn- no-internal-appenders? []
@@ -33,10 +37,11 @@
     (.removeAllAppenders logger)
     (doto appender
       (.setImmediateFlush true))
+    (.setAdditivity logger false)
     (.addAppender logger appender)
     (.setLevel logger Level/INFO)))
 
-(defn- ensure-internal-logging! []
+(defn- ensure-config-logging! []
   (when (no-internal-appenders?) (init-logging!)))
 
 (defn reset-logging! []
@@ -47,26 +52,26 @@
 
 (defn create-appender-adapter
   ([f ^String name]
-     (ensure-internal-logging!)
-     (debug (format "Creating appender named %s" name))
+     (ensure-config-logging!)
+     (logf :debug "Creating appender named %s" name)
      (proxy [AppenderSkeleton] []
        (append [^LoggingEvent ev] (f (as-map ev)))
        (close [] nil)))
   ([f] (create-appender-adapter f nil)))
 
+
 (defn create-console-appender
   ([^Layout layout ^String name]
-     (ensure-internal-logging!)
-     (debug (format "Creating console appender named %s" name))
-     (proxy [AppenderSkeleton] []
-       (append [^LoggingEvent ev] (.print System/out (.format layout ev)))
+     (ensure-config-logging!)
+     (logf :debug "Creating console appender named %s and layout %s" name layout)
+     (proxy [WriterAppender] [layout System/out]
        (close [] nil)))
   ([^Layout layout]
-     (create-console-appender layout nil)))
+     (create-console-appender layout "_default")))
 
 (defn wrap-appender-with-filter
   ([^Appender delegate filterfn]
-     (ensure-internal-logging!)
+     (ensure-config-logging!)
      (debug "Creating filter appender")
      (proxy [AppenderSkeleton] []
        (append [^LoggingEvent ev]
@@ -76,7 +81,7 @@
 
 (defn wrap-appender-with-header-and-footer
   ([^Appender delegate header footer]
-     (ensure-internal-logging!)
+     (ensure-config-logging!)
      (debug "Creating header/footer appender")
      (proxy [AppenderSkeleton] []
        (append [^LoggingEvent ev] (.doAppend delegate ev))
@@ -85,9 +90,9 @@
        (getFooter [] (if (fn? footer) (footer) (str footer)))
        (close [] (.close delegate)))))
 
-(defn create-layout [formatter]
+(defn create-layout-adaptor [f]
   (proxy [Layout] []
-    (format [ev] (formatter (as-map ev)))))
+    (format [ev] (f (as-map ev)))))
 
 (defn as-level [level]
   (cond
@@ -113,109 +118,152 @@
       (wrap-appender-with-header-and-footer appender header footer)
       appender)))
 
-(defn ^Logger as-logger [logger]
-  (if (string? logger) (Logger/getLogger ^String logger) logger))
+(defn ^Logger as-logger
+  "If a string is given, lookup the Logger, else return the parameter as-is."
+  [logger]
+  (cond (string? logger) (Logger/getLogger ^String logger)
+        (contains? #{:root ""} logger) (Logger/getRootLogger)
+        (= :config logger) (get-config-logger)
+        :otherwise logger))
+
+(defn- as-loggers
+  "Functions that accept a logger name (or logger) can also take multiples as a
+list. This returns a list of actual loggers. A single logger will result in a
+list with one entry."
+  [logger]
+  (if (coll? logger)
+    (map as-logger logger)
+    (list (as-logger logger))))
+
+(defn as-layout [layout]
+  (if (nil? layout) (SimpleLayout.) layout))
+
+(defn ensure-appender
+  ([logger leaf-logger]
+     (when (empty? (enumeration-seq (.getAllAppenders logger)))
+       (let [parent (.getParent logger)]
+         (if (and parent (.getAdditivity logger))
+           (ensure-appender parent leaf-logger)
+           (do
+             (ensure-config-logging!)
+             (logf :debug "Must create an appender at %s because otherwise no logging would be emitted for %s" (.getName logger) (.getName leaf-logger))
+             (.addAppender logger (create-console-appender (SimpleLayout.))))))))
+  ([logger] (ensure-appender logger logger)))
 
 (defn ^{:private true}
   set-logger
+  "Sets logging configuration for a logger, or list of loggers. Returns nil."
   [[logger {:keys [name level out encoding pattern layout filter additivity header footer test]
             :or {name "_default" level :info encoding "UTF-8" test true}
             :as args}]]
-  (ensure-internal-logging!)
-  (debug (format "Set logger: logger is %s, args is %s" logger args))
 
-  ;; Some assertion rules
+  (ensure-config-logging!)
+  (logf :debug "Set logger: logger is %s, args is %s" logger args)
 
   (when (and layout pattern)
     (throw (IllegalStateException. "Cannot specify both :pattern and :layout")))
 
-  (let [^Logger logger (as-logger logger)
-
-        ^Layout actual-layout
+  (let [^Layout actual-layout
         (cond
-         (fn? layout) (create-layout layout)
-         pattern (EnhancedPatternLayout. pattern)
+         (fn? layout) (create-layout-adaptor layout)
+         pattern (do
+                   (logf :debug "Creating enhanced pattern layout with pattern: %s" pattern)
+                   (EnhancedPatternLayout. pattern))
          layout layout)
 
+        ;; Try to infer whether an appender is required for this logger
+        ;; If the out parameter is given, or a layout is given, then an appender
+        ;; needs to be added.
         ^Appender appender
         (cond
          (instance? Appender out) out
          (fn? out) (create-appender-adapter out name)
 
          (instance? OutputStream out)
-         (do
-           (when (not actual-layout)
-             (throw (Exception. "When specifying an OutputStream, a layout must also be specified.")))
-           (doto (WriterAppender. actual-layout ^OutputStream out)
-             (.setEncoding encoding)))
+         (doto (WriterAppender. (as-layout actual-layout) ^OutputStream out)
+           (.setEncoding encoding))
 
          (instance? Writer out)
-         (do
-           (when (not actual-layout)
-             (throw (Exception. "When specifying an Writer, a layout must also be specified.")))
-           (doto (WriterAppender. actual-layout ^Writer out)
-             (.setEncoding encoding)))
+         (doto (WriterAppender. (as-layout actual-layout) ^Writer out)
+           (.setEncoding encoding))
+
+         (instance? File out)
+         (doto (WriterAppender. (as-layout actual-layout) ^Writer (io/writer out))
+           (.setEncoding encoding))
+
+         (instance? String out)
+         (doto (WriterAppender. (as-layout actual-layout) ^Writer (io/writer (io/file out)))
+           (.setEncoding encoding))
+
+         (or actual-layout (= out :console))
+         (create-console-appender (as-layout actual-layout) name)
 
          out
          (throw (IllegalStateException.
-                 (format "Wrong type of appender: %s" (type out))))
+                 (format "Wrong type of appender: %s" (type out)))))]
 
-         actual-layout
-         (create-console-appender actual-layout name)
+    (when appender
+      (when (nil? (.getName appender))
+        (logf :debug "Setting name %s against appender" name)
+        (.setName appender name)))
 
-         :otherwise
-         (create-console-appender
-          (if actual-layout actual-layout (SimpleLayout.))
-          name))]
+    (doall (for [^Logger logger (as-loggers logger)]
+             (do
+               (when appender
+                 (.removeAppender logger ^String name)
+                 (logf :debug "Adding appender named %s to logger %s" name (.getName logger))
+                 (.addAppender logger ((comp (wrap-for-filter filter)
+                                             (wrap-for-header-or-footer header footer))
+                                       appender)))
 
-    (when (nil? (.getName appender))
-      (debug (format "Setting name %s against appender" name))
-      (.setName appender name))
+               ;; By default, the level is set explicitly, to ensure logging works.
+               (when (not (or (nil? level) (= level :inherit)))
+                 (logf :debug "Setting level to %s" level)
+                 (.setLevel logger (as-level level)))
 
-    (.removeAppender logger ^String name)
-    (debug (format "Adding appender named %s to logger %s" name (.getName logger)))
-    (.addAppender logger ((comp (wrap-for-filter filter)
-                                (wrap-for-header-or-footer header footer))
-                          appender))
+               ;; Whether events should propagate up the hierarchy.
+               (when appender
+                 (let [actual-additivity (if (nil? additivity) (nil? appender) additivity)]
+                   (logf :debug "Setting additivity to %s" actual-additivity)
+                   (.setAdditivity logger actual-additivity)))
 
-    ;; By default, the level is set explicitly, to ensure logging works.
-    (when (not (or (nil? level) (= level :inherit)))
-      (.setLevel logger (as-level level)))
+               ;; Ensure an appender exists for this logger
+               (ensure-appender logger)
 
-    ;; Whether events should propagate up the hierarchy.
-    (if additivity (.setAdditivity logger additivity))
+               ;; Test the logger
+               (when (true? test)
+                 (. logger log Level/ALL (format "clj-logging-config: Testing logger %s... 1..2..3.." (.getName logger)))))))))
 
-    ;; Test the logger
-    (when (true? test)
-      (. logger log Level/ALL (format "clj-logging-config: Testing logger %s... 1..2..3.." (.getName logger))))))
-
-(defn set-loggers! [& {:as args}]
-  (doall (map set-logger args)))
+(defn set-loggers! [& args]
+  (assert (even? (count args)))
+  (doall (map set-logger (partition 2 args))))
 
 (defmacro set-logger! [& [logger & args :as allargs]]
   (cond (or (empty? allargs) (keyword? logger))
         `(set-loggers! (name (ns-name ~*ns*)) ~(apply hash-map allargs))
-        (string? logger)
-        `(set-loggers! ~logger ~(apply hash-map args))
-        :otherwise (throw (IllegalArgumentException.))))
+        :otherwise
+        `(set-loggers! ~logger ~(apply hash-map args))))
 
 (defn _set-logger-level! [logger level]
-  (ensure-internal-logging!)
-  (debug (format "Set level for %s to %s" logger level))
-  (.setLevel (as-logger logger) (as-level level)))
+  (ensure-config-logging!)
+  (for [logger (as-loggers logger)]
+    (do
+      (logf :debug "Set level for %s to %s" logger level)
+      (.setLevel logger (as-level level)))))
 
 (defmacro set-logger-level!
   ([level]
      `(set-logger-level! (name (ns-name ~*ns*)) ~level))
   ([logger level]
-
      `(do
         (_set-logger-level! ~logger ~level))))
 
 (defn _set-logger-additivity! [logger value]
-  (ensure-internal-logging!)
-  (debug (format "Set additivity for %s to %s" logger value))
-  (.setAdditivity (as-logger logger) value))
+  (ensure-config-logging!)
+  (for [logger (as-loggers logger)]
+    (do
+      (logf :debug "Set additivity for %s to %s" logger value)
+      (.setAdditivity logger value))))
 
 (defmacro set-logger-additivity!
   ([value]
@@ -224,20 +272,103 @@
      `(do
         (_set-logger-additivity! ~logger ~value))))
 
-(defn get-logging-config []
-  (map (fn [logger]
-         (-> logger
-             (update-in [:parent] (fn [^Logger parent] (.getName parent)))
-             (dissoc :loggerRepository)
-             (dissoc :hierarchy)
-             (update-in [:chainedPriority] str)
-             (update-in [:level] str)
-             (update-in [:effectiveLevel] str)
-             (update-in [:allAppenders] enumeration-seq)
-             (update-in [:priority] str))) (sort-by :name (map bean (enumeration-seq (LogManager/getCurrentLoggers))))))
+(defn safe-bean [x]
+  (if (not (nil? x)) (bean x) x))
 
-(defn set-internal-logging-level! [level]
-  (ensure-internal-logging!)
-  (.setLevel (get-internal-logger) (as-level level))
-  (debug (format "Set internal logging level to %s" level)))
+(defn- stringify-appenders [appenders]
+  (map (fn [appender]
+         (-> appender
+             (update-in [:layout] safe-bean)
+             (update-in [:errorHandler] safe-bean)
+             (update-in [:filter] safe-bean)))
+       (->> appenders
+            enumeration-seq
+            (map bean))))
+
+(defn get-logging-config []
+  {:repository (bean (LogManager/getLoggerRepository))
+   :loggers
+   (map (fn [logger]
+          (-> logger
+              (update-in [:parent] (fn [^Logger parent] (.getName parent)))
+              (dissoc :loggerRepository)
+              (dissoc :hierarchy)
+              (update-in [:chainedPriority] str)
+              (update-in [:level] str)
+              (update-in [:effectiveLevel] str)
+              (update-in [:allAppenders] stringify-appenders)
+              (update-in [:priority] str))) (sort-by :name (map bean (enumeration-seq (LogManager/getCurrentLoggers)))))})
+
+(defn set-config-logging-level! [level]
+  (ensure-config-logging!)
+  (.setLevel (get-config-logger) (as-level level))
+  (logf :debug "Set config logging level to %s" level))
+
+;; Thread-local logging support
+
+(def logger-repository-by-thread (ref {}))
+
+(defn create-logger-repository []
+  (Hierarchy. (RootLogger. Level/DEBUG)))
+
+(defn register-thread-local-logging-thread []
+  (ensure-config-logging!)
+  (logf :debug "Thread %d registered in logger repository map" (.hashCode (Thread/currentThread)))
+  (dosync
+   (alter logger-repository-by-thread
+          assoc (Thread/currentThread) (create-logger-repository))))
+
+(defn deregister-thread-local-logging-thread []
+  (ensure-config-logging!)
+  (logf :debug "Thread %d removed from logger repository map" (.hashCode (Thread/currentThread)))
+  (dosync
+   (alter logger-repository-by-thread
+          dissoc (Thread/currentThread))))
+
+(defn get-thread-local-logger-repository []
+  (let [t (.hashCode (Thread/currentThread))]
+    (get @logger-repository-by-thread t)))
+
+(defn enable-thread-local-logging! []
+  (ensure-config-logging!)
+  (logf :info "Thread-local logging enabled")
+  (let [global (create-logger-repository)]
+    (LogManager/setRepositorySelector
+     (proxy [RepositorySelector] []
+       (getLoggerRepository [] (or (get-thread-local-logger-repository)
+                                   global)))
+     (comment "Here's the guard (nil)"))))
+
+(defn disable-thread-local-logging! []
+  (ensure-config-logging!)
+  (logf :info "Thread-local logging disabled")
+  (let [global (create-logger-repository)]
+    (LogManager/setRepositorySelector
+     (proxy [RepositorySelector] []
+       (getLoggerRepository [] global))
+     (comment "Here's the guard (nil)"))))
+
+(defmacro with-logging-config [config & body]
+  `(try
+     (register-thread-local-logging-thread)
+     (reset-logging!)
+     ;;     (set-config-logging-level! :debug)
+     (apply set-loggers! ~config)
+     ~@body
+     (finally
+      (deregister-thread-local-logging-thread)
+      (LogManager/shutdown))))
+
+(defmacro with-logging-context [x & body]
+  `(let [x# ~x]
+     (try
+       (if (map? x#)
+         (doall (map (fn [[k# v#]] (MDC/put (name k#) v#)) x#))
+         (.push ~NDC (str x#)))
+       ~@body
+       (finally
+        (if (map? x#)
+          (doall (map (fn [[k# v#]] (MDC/remove (name k#))) x#))
+          (.pop ~NDC))))))
+
 

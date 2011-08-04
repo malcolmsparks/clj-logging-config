@@ -1,6 +1,6 @@
 # Log configuration for Clojure
 
-A logging facility in Clojure is provided by the clojure.contrib.logging module. This searches the JVM classpath for one of the various logging frameworks to delegate logging statements to.
+A logging facility in Clojure is provided by the clojure.tools.logging module. This searches the JVM classpath for one of the various logging frameworks to delegate logging statements to.
 
 While this is very useful, logging in Java has always been complicated to configure correctly. Fortunately, the two major logging 'back-ends' in Java (log4j and 'java.util.logging') support programmatic configuration so it is easy to replace the configuration file mechanisms with something that is easier and more flexible for Clojure programmers.
 
@@ -8,20 +8,24 @@ This library supports easy configuration via Clojure rather than Java properties
 
 Right now, only log4j is (properly) supported (since that it by far the most popular framework in use today). Support for java.util.logging is being added and will be fully supported soon.
 
-## Examples
+### License
 
-Start by using <code>:use</code> (or <code>:require</code>) in your namespace declaration (or similar).
+This library is dual-licensed under the Eclipse Public License, Version 1.0 and the AGPL version 3. Use whichever one suits your need.
+
+## Getting started
+
+Start by using ```:use``` (or ```:require```) in your namespace declaration (or similar).
 
     (ns my-ns
-      (:use clojure.contrib.logging
+      (:use clojure.tools.logging
             [clj-logging-config.log4j :only logger]))
 
-Configure the logging system declaring a logger with <code>set-logger!</code> and just start using it.
+Configure the logging system declaring a logger with ```set-logger!``` and just start using it.
 
     (set-logger!)
     (info "Just a plain logging message, you should see the level at the beginning")
 
-In Log4J it is common to set a pattern against the logger. Full syntax can be found in org.apache.log4j.PatternLayout. For example, to set a pattern which just displays the message, do this:
+When using log4J it is common to set a pattern against the logger. Full syntax can be found in ```org.apache.log4j.PatternLayout```. For example, to set a pattern which just displays the message, do this:
 
     (set-logger! :pattern "%m%n")
     (info "A logging message, just the message this time")
@@ -66,13 +70,15 @@ It (almost) goes without saying that you can combine all these options together 
 
 There are some combinations that doesn't make sense (such as using <code>:pattern</code> and <code>:layout</code> together). In these cases an exception will be thrown.
 
-## Logger names
+## User guide
 
-Java logging packages conventionally organise a hierarchy of loggers that mirrors the Java package hierarchy. The <code>clojure.contrib.logging</code> module follows this convention and so does <code>clj-logging-config<code>. If you don't specify a logger name it defaults to the current namespace when you use <code>set-logger!</code>. But you can override this if you need to.
+### Logger names
+
+Java logging packages conventionally organise a hierarchy of loggers that mirrors the Java package hierarchy. The <code>clojure.tools.logging</code> module follows this convention and so does <code>clj-logging-config<code>. If you don't specify a logger name it defaults to the current namespace when you use <code>set-logger!</code>. But you can override this if you need to.
 
     (set-logger! "my-loggger" :level :info)
 
-## Setting multiple loggers
+### Setting multiple loggers
 
 A <code>log4j.properties</code> (or <code>log4j.xml</code>) file configures multiple loggers as the same time. You can too with <code>set-loggers!</code> :-
 
@@ -84,17 +90,86 @@ A <code>log4j.properties</code> (or <code>log4j.xml</code>) file configures mult
         "com.malcolmsparks.bar" 
         {:level :debug})
 
-## Why the bang?
+### Why the bang?
 
 Remember that <code>set-logger!</code> mutates the configuration of logging in the JVM. That's why there's a '!' in the function name, to indicate the side-effect. It would be very nice if logging configuration could be set on a per-thread basis (see below) - that's just not how the Java logging packages are designed with everything as statics, something we must live with.
 
-## Appender names
+### Appender names
 
 By default, appenders are added. The problem is that in some Clojure programming environments you recompile namespace frequently, which would cause a new appender to get added on each occurance. The library addresses this problem by giving every appender a name- if you don't specify it defaults to <code>_default</code>. When you call <code>set-logger!</code> it replaces any existing logger with the same name. If you want more control over this (for example, to add appenders to a prior logging configuration non-destructivly) you can specify the appender name explicitly :-
 
     (set-logger! :name "access-log")
 
-## Design notes
+### Setting duplicate configuration against multiple loggers
+
+Occasionally it's useful to set the same configuration at multiple nodes of the logger hierarchy. For example, if you want to select 2 or more sub-packages to act as a single logger for the purposes of a debugging session. You can do this by replacing the logger name with a list.
+
+    (set-loggers! 
+
+        ["com.malcolmsparks.foo" "com.malcolmsparks.zip"]
+        {:level :info :pattern "%m"}
+
+        "com.malcolmsparks.bar" 
+        {:level :debug})
+
+## Advanced topics
+
+### Using your own logger
+
+TODO - explain the API - how bean is used to provide a map
+Show some examples.
+
+## Log4j NDC and MDC
+
+Log4j provides support for adding context at various points in your code. This is provided by both the original NDC (Nested Diagnostic Context) and the slightly newer MDC (Mapped Diagnostic Context).
+
+You can access this features via Clojure by using the with-logging-context. First, ensure that the layout will show the NDC. For example, if you using the standard (enhanced) pattern layout, drop in a ```%x```.
+
+Here's how to use the NDC.
+
+    (:set-logger! :layout "%p %m (%x) %n")
+
+    (with-logging-context "jobid=56"
+        (with-logging-context "customer=Fred"
+            (info "Here's some logging")))
+
+This will result in the following output :-
+
+    "INFO Here's some logging (jobid=56 customer=Fred)"
+
+Using the MDC feature is almost identical. Just use a map rather than a string, the keys in the map. You can use keywords or strings, but keywords will be turning into strings.
+
+    (with-logging-context {:jobid 56
+                           :parentid 10}
+        (with-logging-context {}
+    
+## Internal logging
+
+You can set the config logging
+
+    (set-config-logging-level! :debug)
+
+Or as part of a ```set-loggers!``` call.
+
+    (set-loggers! 
+        :config {:level :debug}
+        "user" {:level :debug :out :console}
+    )        
+    
+## Thread-local logging
+
+Often you want to log on a per-thread (or per-agent) basis. Perhaps you are writing a job processing system and want a separate log file for each job. By default, neither _log4j_ nor _java.util.logging_ are configured to support this.
+
+    (enable-thread-local-logging!)
+
+    (with-logging
+      {:root {:out "job.log" :level :debug}}
+      (debug "This is some debug that goes to job.log")
+    )
+
+This constructs an independent logging hierarchy. If you want to use this feature, you must use ```clojure.tools.logging``` rather than ```clojure.contrib.logging```, since the latter uses memoisation to cache loggers which negatively impacts the operation of thread-local logging.
+
+## Development guide
 
 There are two broadly equivalent modules to support both log4j and java.util.logging. If you need to use both simultaneously (eg. as part of an integrated system where don't have control over which logging API your dependencies use), it is strongly suggested you use the bridging capabilities of slf4j. 
 
@@ -104,25 +179,16 @@ The upshot of this design is that the user makes a decision about which logging 
 
 Again, if you just can't make up your mind about which package to use and need to reduce cost of change, or have to integrate code which uses different logging packages, then choose slf4j and use bridging adapters. Then use clj-logging-config to configure the backend you have chosen for slf4j. The author has built a system with clj-logging-config and slf4j and both work fine together.
 
-## Thread-local logging (TODO)
-
-Often you want to log on a per-thread (or per-agent) basis. Perhaps you are writing a job processing system and want a separate log file for each job. You can't do this with the Java logging APIs but you can write your own _appender_ (or _handler_ in the case of java.util.logging) to accomplish this and configure it into the logging system.
-
-    (with-logging
-      {:out (io/writer (io/file "job.log"))
-       :level :debug}
-      (debug "This is some debug that goes to job.log")
-    )
-
-This works by creating a special appender at the root logger level. The is uses a filter that checks logging messages against a level. To achieve isolation with other loggers it binds in a new hierarchy which is used by the clojure logging API.
-
-## Reading the code
+### Reading the code
 
 If you want to dive into the code to see how it works, ensure you are familiar with destructuring in Clojure. If not, these links will help you :-
 
 * [[http://blog.jayfields.com/2010/07/clojure-destructuring.html]]
 * [[http://briancarper.net/blog/579/keyword-arguments-ruby-clojure-common-lisp]]
 
-## License
+### Promotion into clojure.core/tools.logging
 
-This library is dual-licensed under the Eclipse Public License, Version 1.0 and the AGPL version 3. Use whichever one suits your need.
+I hope this package will someday find its way into clojure.core/tools.logging. I think the NDC and MDC macros belong in the ```clojure.tools.logging``` package itself, with the configuration stuff in a new package, perhaps ```clojure.tools.logging.configuration```.
+
+For this reason I have licensed the package with EPL, the same as Clojure. (I usually use AGPLv3 because I believe it ensures greater freedom to developers transitively).
+
