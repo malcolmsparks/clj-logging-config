@@ -33,11 +33,11 @@
 (debug "A debug message")
 (info "Some info message")
 
-(set-logger-level! :warn)
+(set-logger! :level :warn)
 (info "You won't see me")
 (warn "But you'll see me!")
 
-(set-logger-level! :debug)
+(set-logger! :level :debug)
 (debug "Now you can see a debug message")
 
 ;; If you get stuck you can reset the logging system with this :-
@@ -47,15 +47,19 @@
 ;; config logging to debug :-
 (set-config-logging-level! :debug)
 
+;; (Now go back to the beginning and repeat with the config logging set to debug)
+
+;; We can set multiple the loggers simultaneously, in a defined order.
+(set-loggers! 
+ :root {:out :console}
+ :config {:level :info}
+ "user" {:level :info})
+
+(info "Test logger")
+
 ;; Now let's try some thread-local logging
 ;; First, we have to enable it because log4j isn't set up to do this 'out-of-the-box'.
 (enable-thread-local-logging!)
-
-(set-loggers! :config {:level :info})
-
-(set-logger! :level :info)
-
-(info "foo")
 
 (with-logging-config
   [:root {:level :debug :out :console :pattern "%m (%x) %n"}
@@ -63,7 +67,7 @@
    "user" {:level :debug}]
   (with-logging-context "jobid=56"
     (with-logging-context "part=A"
-      (info "Here's some logging"))))
+      (info "Here's some logging inside some context"))))
 
 (with-logging-config
   [:root {:level :debug :out :console :pattern "%m customer=%X{customer} job=%X{job-id} %n"}
@@ -72,7 +76,7 @@
   (with-logging-context  {:job-id 1234
                           :parent-id 56}
     (with-logging-context {:customer "Fred"}
-      (info "Here's some logging"))))
+      (info "Here's some logging inside some MDC context"))))
 
 
 (disable-thread-local-logging!)
@@ -83,14 +87,5 @@
 ;; Sometimes printing out the current configuration can help diagnose problems :-
 (pprint (get-logging-config))
 
-(with-logging-config {:root {:level :debug :out "/tmp/foo1.log"}
-                      "clj-logging-config.log4j" {:level :debug}}
-  (set-config-logging-level! :debug)
-  (info "Here's some logging"))
-
-
 ;; TODO: Test agents, particular check whether MDCs are propagated to 'child'
 ;; threads as claimed by file:///home/malcolm/Downloads/apache-log4j-1.2.16/site/apidocs/org/apache/log4j/MDC.html
-
-
-;; TODO: What if we JUST want to set the layout on an existing logger??

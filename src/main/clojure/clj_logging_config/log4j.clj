@@ -28,10 +28,10 @@
 
 (defn- no-internal-appenders? []
   (empty?
-   (enumeration-seq (.getAllAppenders (get-internal-logger)))))
+   (enumeration-seq (.getAllAppenders (get-config-logger)))))
 
 (defn- init-logging! []
-  (let [logger (get-internal-logger)
+  (let [logger (get-config-logger)
         appender (proxy [WriterAppender] [(SimpleLayout.) System/out]
                    (close [] nil))]
     (.removeAllAppenders logger)
@@ -96,6 +96,8 @@
 
 (defn as-level [level]
   (cond
+   (nil? level) nil
+   (= :inherit level) nil
    (keyword? level) (get {:all Level/ALL
                           :debug Level/DEBUG
                           :error Level/ERROR
@@ -216,14 +218,13 @@ list with one entry."
                                              (wrap-for-header-or-footer header footer))
                                        appender)))
 
-               ;; By default, the level is set explicitly, to ensure logging works.
-               (when (not (or (nil? level) (= level :inherit)))
-                 (logf :debug "Setting level to %s" level)
-                 (.setLevel logger (as-level level)))
+               (logf :debug "Setting level to %s" level)
+               (.setLevel logger (as-level level))
 
                ;; Whether events should propagate up the hierarchy.
-               (when appender
-                 (let [actual-additivity (if (nil? additivity) (nil? appender) additivity)]
+               (let [actual-additivity (cond (not (nil? additivity)) additivity
+                                             (not (nil? appender)) false)]
+                 (when (not (nil? actual-additivity))
                    (logf :debug "Setting additivity to %s" actual-additivity)
                    (.setAdditivity logger actual-additivity)))
 
@@ -306,26 +307,26 @@ list with one entry."
 
 ;; Thread-local logging support
 
-(def logger-repository-by-thread (ref {}))
+(def ^{:private true} logger-repository-by-thread (ref {}))
 
-(defn create-logger-repository []
+(defn ^{:private true} create-logger-repository []
   (Hierarchy. (RootLogger. Level/DEBUG)))
 
-(defn register-thread-local-logging-thread []
+(defn ^{:private true} register-thread-local-logging-thread []
   (ensure-config-logging!)
   (logf :debug "Thread %d registered in logger repository map" (.hashCode (Thread/currentThread)))
   (dosync
    (alter logger-repository-by-thread
           assoc (Thread/currentThread) (create-logger-repository))))
 
-(defn deregister-thread-local-logging-thread []
+(defn ^{:private true} deregister-thread-local-logging-thread []
   (ensure-config-logging!)
   (logf :debug "Thread %d removed from logger repository map" (.hashCode (Thread/currentThread)))
   (dosync
    (alter logger-repository-by-thread
           dissoc (Thread/currentThread))))
 
-(defn get-thread-local-logger-repository []
+(defn ^{:private true} get-thread-local-logger-repository []
   (let [t (.hashCode (Thread/currentThread))]
     (get @logger-repository-by-thread t)))
 
@@ -350,25 +351,25 @@ list with one entry."
 
 (defmacro with-logging-config [config & body]
   `(try
-     (register-thread-local-logging-thread)
+     (~register-thread-local-logging-thread)
      (reset-logging!)
      ;;     (set-config-logging-level! :debug)
      (apply set-loggers! ~config)
      ~@body
      (finally
-      (deregister-thread-local-logging-thread)
+      (~deregister-thread-local-logging-thread)
       (LogManager/shutdown))))
 
 (defmacro with-logging-context [x & body]
   `(let [x# ~x]
      (try
        (if (map? x#)
-         (doall (map (fn [[k# v#]] (MDC/put (name k#) v#)) x#))
-         (.push ~NDC (str x#)))
+         (doall (map (fn [[k# v#]] (. ~MDC put (name k#) v#)) x#))
+         (. ~NDC push (str x#)))
        ~@body
        (finally
         (if (map? x#)
-          (doall (map (fn [[k# v#]] (MDC/remove (name k#))) x#))
-          (.pop ~NDC))))))
+          (doall (map (fn [[k# v#]] (. ~MDC remove (name k#))) x#))
+          (. ~NDC pop))))))
 
 
