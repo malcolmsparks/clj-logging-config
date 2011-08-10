@@ -186,8 +186,9 @@ Often you want to log on a per-thread (or per-agent) basis. Perhaps you are writ
 
     (enable-thread-local-logging!)
 
-    (with-logging
-      {:root {:out "job.log" :level :debug}}
+    (with-logging-config
+      [:root {:out "job.log" :level :info}
+       "com.malcolmsparks.foo" {:level :debug}]
       (debug "This is some debug that goes to job.log"))
 
 This constructs an independent logging hierarchy. If you want to use this feature, you must use ```clojure.tools.logging``` rather than ```clojure.contrib.logging```, since the latter uses memoisation to cache loggers which negatively impacts the operation of thread-local logging.
