@@ -317,14 +317,14 @@ list with one entry."
   (logf :debug "Thread %d registered in logger repository map" (.hashCode (Thread/currentThread)))
   (dosync
    (alter logger-repository-by-thread
-          assoc (Thread/currentThread) (create-logger-repository))))
+          assoc (.hashCode (Thread/currentThread)) (create-logger-repository))))
 
 (defn ^{:private true} deregister-thread-local-logging-thread []
-  (ensure-config-logging!)
-  (logf :debug "Thread %d removed from logger repository map" (.hashCode (Thread/currentThread)))
   (dosync
    (alter logger-repository-by-thread
-          dissoc (Thread/currentThread))))
+          dissoc (.hashCode (Thread/currentThread))))
+  (ensure-config-logging!)
+  (logf :debug "Thread %d removed from logger repository map" (.hashCode (Thread/currentThread))))
 
 (defn ^{:private true} get-thread-local-logger-repository []
   (let [t (.hashCode (Thread/currentThread))]
@@ -357,8 +357,8 @@ list with one entry."
      (apply set-loggers! ~config)
      ~@body
      (finally
-      (~deregister-thread-local-logging-thread)
-      (LogManager/shutdown))))
+      (LogManager/shutdown)
+      (~deregister-thread-local-logging-thread))))
 
 (defmacro with-logging-context [x & body]
   `(let [x# ~x]

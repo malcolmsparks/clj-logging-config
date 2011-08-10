@@ -22,4 +22,4 @@
   :source-path "src/main/clojure"
   :test-path "src/test/clojure"
   :target-dir "target/"
-  :local-repo-classpath true)
+)
