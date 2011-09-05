@@ -190,11 +190,11 @@ list with one entry."
            (.setEncoding encoding))
 
          (instance? File out)
-         (doto (WriterAppender. (as-layout actual-layout) ^Writer (io/writer out))
+         (doto (WriterAppender. (as-layout actual-layout) ^Writer (java.io.FileWriter. out))
            (.setEncoding encoding))
 
          (instance? String out)
-         (doto (WriterAppender. (as-layout actual-layout) ^Writer (io/writer (io/file out)))
+         (doto (WriterAppender. (as-layout actual-layout) ^Writer (java.io.FileWriter. (io/file out)))
            (.setEncoding encoding))
 
          (or actual-layout (= out :console))
@@ -312,14 +312,14 @@ list with one entry."
 (defn ^{:private true} create-logger-repository []
   (Hierarchy. (RootLogger. Level/DEBUG)))
 
-(defn ^{:private true} register-thread-local-logging-thread []
+(defn register-thread-local-logging-thread []
   (ensure-config-logging!)
   (logf :debug "Thread %d registered in logger repository map" (.hashCode (Thread/currentThread)))
   (dosync
    (alter logger-repository-by-thread
           assoc (.hashCode (Thread/currentThread)) (create-logger-repository))))
 
-(defn ^{:private true} deregister-thread-local-logging-thread []
+(defn deregister-thread-local-logging-thread []
   (dosync
    (alter logger-repository-by-thread
           dissoc (.hashCode (Thread/currentThread))))
@@ -351,14 +351,14 @@ list with one entry."
 
 (defmacro with-logging-config [config & body]
   `(try
-     (~register-thread-local-logging-thread)
+     (register-thread-local-logging-thread)
      (reset-logging!)
      ;;     (set-config-logging-level! :debug)
      (apply set-loggers! ~config)
      ~@body
      (finally
       (LogManager/shutdown)
-      (~deregister-thread-local-logging-thread))))
+      (deregister-thread-local-logging-thread))))
 
 (defmacro with-logging-context [x & body]
   `(let [x# ~x]
