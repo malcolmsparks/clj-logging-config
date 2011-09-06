@@ -59,7 +59,6 @@
        (close [] nil)))
   ([f] (create-appender-adapter f nil)))
 
-
 (defn create-console-appender
   ([^Layout layout ^String name]
      (ensure-config-logging!)
@@ -349,13 +348,19 @@ list with one entry."
        (getLoggerRepository [] global))
      (comment "Here's the guard (nil)"))))
 
+;; Apache commons-logging seems to get in the way of thread-local logging
+;; because it presumably caches loggers. For this reason we have to specifically
+;; bind in the log4j implementation on each logging thread - we store it here.
+(def logging-impl (log4j-logging))
+
 (defmacro with-logging-config [config & body]
   `(try
-     (register-thread-local-logging-thread)
-     (reset-logging!)
-     ;;     (set-config-logging-level! :debug)
-     (apply set-loggers! ~config)
-     ~@body
+     (binding [*log-factory* logging-impl]
+       (register-thread-local-logging-thread)
+       (reset-logging!)
+       (set-config-logging-level! :debug)
+       (apply set-loggers! ~config)
+       ~@body)
      (finally
       (LogManager/shutdown)
       (deregister-thread-local-logging-thread))))
