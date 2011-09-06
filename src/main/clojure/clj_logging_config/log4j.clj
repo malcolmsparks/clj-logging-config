@@ -358,7 +358,7 @@ list with one entry."
      (binding [*log-factory* logging-impl]
        (register-thread-local-logging-thread)
        (reset-logging!)
-       (set-config-logging-level! :debug)
+       ;; (set-config-logging-level! :debug)
        (apply set-loggers! ~config)
        ~@body)
      (finally
