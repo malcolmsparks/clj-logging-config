@@ -11,6 +11,7 @@
 ;; this license.  You must not remove this notice, or any other, from this
 ;; software.
 
+(require '[clojure.java.io :as io])
 (import (org.apache.log4j PatternLayout FileAppender))
 (use 'clojure.tools.logging 'clj-logging-config.log4j)
 
@@ -60,6 +61,10 @@
 ;; (with-logging-config) allows you to overlay a temporary thread-local specific logging configuration.
 ;; One example is if you are writing a batch system and want a log file per job.
 
+(with-open [f (io/output-stream (io/file "job-123.log"))]
+  (with-logging-config [:root {:level :debug :out f :pattern ">>> %d - %m %n"}]
+    (logf :info "foo")))
+
 (with-logging-config
   [*ns* {:level :debug :out :console :pattern "%d %m (%x) %n"}
    :config {:level :info}]
@@ -74,9 +79,6 @@
                           :parent-id 56}
     (with-logging-context {:customer "Fred"}
       (info "Here's some logging inside some MDC context"))))
-
-
-(disable-thread-local-logging!)
 
 ;; Now you've set the config logging level, go back to the beginning and
 ;; re-evaluate each form.
