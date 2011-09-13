@@ -16,7 +16,7 @@
         clojure.tools.logging)
   (:import (java.util.logging
             Logger Level LogManager Handler LogRecord
-            Formatter SimpleFormatter ConsoleHandler StreamHandler)
+            Formatter SimpleFormatter ConsoleHandler FileHandler StreamHandler)
            (java.io OutputStream)))
 
 (set! *warn-on-reflection* true)
@@ -115,6 +115,8 @@
 
         ^Handler handler
         (cond
+         (string? out) (doto (FileHandler. out)
+                         (.setFormatter actual-formatter)) ; j.u.l pattern
          (instance? Handler out) out
          (fn? out) (create-handler out)
          (instance? OutputStream out) (proxy [StreamHandler] [^OutputStream out ^Formatter actual-formatter]
