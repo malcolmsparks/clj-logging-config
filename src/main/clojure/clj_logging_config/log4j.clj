@@ -335,11 +335,10 @@ list with one entry."
                                                    :fatal org.apache.log4j.Level/FATAL}]
                                       (reify Log
                                              (impl-enabled? [log# level#]
-                                                            (let [l# (or (levels# level#)
-                                                                         (throw (IllegalArgumentException. (str level#))))]
-                                                              (or
-                                                               (.isEnabledFor (impl-get-log old-log-factory# log-ns#) l#)
-                                                               (.isEnabledFor logger# l#))))
+                                                            (or
+                                                             (impl-enabled? (impl-get-log old-log-factory# log-ns#) level#)
+                                                             (.isEnabledFor logger# (or (levels# level#)
+                                                                                        (throw (IllegalArgumentException. (str level#)))))))
                                              (impl-write! [log# level# throwable# message#]
                                                           ;; Write the message to the original logger on the thread
                                                           (when-let [orig-logger# (impl-get-log old-log-factory# log-ns#)]

@@ -57,10 +57,11 @@
 
 (info "Test logger")
 
-;; with logging config will
+;; (with-logging-config) allows you to overlay a temporary thread-local specific logging configuration.
+;; One example is if you are writing a batch system and want a log file per job.
 
 (with-logging-config
-  [*ns* {:level :debug :out :console :pattern "%d %m (%x) %c %n"}
+  [*ns* {:level :debug :out :console :pattern "%d %m (%x) %n"}
    :config {:level :info}]
   (with-logging-context "jobid=56"
     (with-logging-context "part=A"
