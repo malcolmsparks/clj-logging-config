@@ -57,22 +57,18 @@
 
 (info "Test logger")
 
-;; Now let's try some thread-local logging
-;; First, we have to enable it because log4j isn't set up to do this 'out-of-the-box'.
-(enable-thread-local-logging!)
+;; with logging config will
 
 (with-logging-config
-  [:root {:level :debug :out :console :pattern "%m (%x) %n"}
-   :config {:level :info}
-   "user" {:level :debug}]
+  [*ns* {:level :debug :out :console :pattern "%d %m (%x) %c %n"}
+   :config {:level :info}]
   (with-logging-context "jobid=56"
     (with-logging-context "part=A"
       (info "Here's some logging inside some context"))))
 
 (with-logging-config
   [:root {:level :info :out :console :pattern "%m customer=%X{customer} job=%X{job-id} %n"}
-   :config {:level :info}
-   ]
+   :config {:level :info}]
   (with-logging-context  {:job-id 1234
                           :parent-id 56}
     (with-logging-context {:customer "Fred"}
@@ -91,21 +87,4 @@
 ;; threads as claimed by
 ;; file:///home/malcolm/Downloads/apache-log4j-1.2.16/site/apidocs/org/apache/log4j/MDC.html
 
-(enable-thread-local-logging!)
 
-(def ag (agent 0 :validator number?))
-
-(deref ag)
-
-(send ag inc)
-
-(release-pending-sends)
-
-(restart-agent ag {})
-
-(agent-errors ag)
-
-(defn sendit []
-  (send ag assoc :zip "a"))
-
-(dosync (sendit))

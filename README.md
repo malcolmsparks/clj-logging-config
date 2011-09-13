@@ -182,9 +182,7 @@ Or as part of a ```set-loggers!``` call.
     
 ## Thread-local logging
 
-Often you want to log on a per-thread (or per-agent) basis. Perhaps you are writing a job processing system and want a separate log file for each job. By default, neither _log4j_ nor _java.util.logging_ are configured to support this.
-
-    (enable-thread-local-logging!)
+Often you want to log on a per-thread (or per-agent) basis. Perhaps you are writing a job processing system and want a separate log file for each job. By default neither _log4j_ nor _java.util.logging_ support this without a lot of programmatic extension. Clojure's macro system makes this fairly straight-forward.
 
     (with-logging-config
       [:root {:out "job.log" :level :info}
