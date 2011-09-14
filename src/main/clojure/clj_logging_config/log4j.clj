@@ -317,6 +317,34 @@ list with one entry."
          (instance? clojure.lang.Namespace logger) (str logger)
          :otherwise (throw (Exception. (format "Cannot be coerced into a logger: %s" logger)))) m])
 
+(def log4j-levels {:trace org.apache.log4j.Level/TRACE
+                   :debug org.apache.log4j.Level/DEBUG
+                   :info  org.apache.log4j.Level/INFO
+                   :warn  org.apache.log4j.Level/WARN
+                   :error org.apache.log4j.Level/ERROR
+                   :fatal org.apache.log4j.Level/FATAL})
+
+(deftype ThreadLocalLog [old-log-factory log-ns logger]
+  Log
+  (impl-enabled? [_ level]
+                 (or
+                  ;; Check original logger
+                  (impl-enabled? (impl-get-log old-log-factory log-ns) level)
+                  ;; Check thread-local logger
+                  (.isEnabledFor logger (or (log4j-levels level)
+                                            (throw (IllegalArgumentException. (str level)))))))
+  (impl-write! [_ level throwable message]
+               ;; Write the message to the original logger on the thread
+               (when-let [orig-logger (impl-get-log old-log-factory log-ns)]
+                 (impl-write! orig-logger level throwable message))
+               ;; Write the message to our thread-local logger
+               (let [l (or
+                        (log4j-levels level)
+                        (throw (IllegalArgumentException. (str level))))]
+                 (if-not throwable
+                   (.log logger l message)
+                   (.log logger l message throwable)))))
+
 (defmacro with-logging-config [config & body]
   `(let [old-log-factory# *log-factory*
          thread-root-logger# (org.apache.log4j.spi.RootLogger. org.apache.log4j.Level/DEBUG)
@@ -326,30 +354,7 @@ list with one entry."
                (reify LogFactory
                       (impl-name [_] "clj-logging-config.thread-local-logging")
                       (impl-get-log [_ log-ns#]
-                                    (let [logger# (.getLogger thread-repo# ^String (str log-ns#))
-                                          levels# {:trace org.apache.log4j.Level/TRACE
-                                                   :debug org.apache.log4j.Level/DEBUG
-                                                   :info  org.apache.log4j.Level/INFO
-                                                   :warn  org.apache.log4j.Level/WARN
-                                                   :error org.apache.log4j.Level/ERROR
-                                                   :fatal org.apache.log4j.Level/FATAL}]
-                                      (reify Log
-                                             (impl-enabled? [log# level#]
-                                                            (or
-                                                             (impl-enabled? (impl-get-log old-log-factory# log-ns#) level#)
-                                                             (.isEnabledFor logger# (or (levels# level#)
-                                                                                        (throw (IllegalArgumentException. (str level#)))))))
-                                             (impl-write! [log# level# throwable# message#]
-                                                          ;; Write the message to the original logger on the thread
-                                                          (when-let [orig-logger# (impl-get-log old-log-factory# log-ns#)]
-                                                            (impl-write! orig-logger# level# throwable# message#))
-                                                          ;; Write the message to our new logger
-                                                          (let [l# (or
-                                                                    (levels# level#)
-                                                                    (throw (IllegalArgumentException. (str level#))))]
-                                                            (if-not throwable#
-                                                              (.log logger# l# message#)
-                                                              (.log logger# l# message# throwable#))))))))]
+                                    (ThreadLocalLog. old-log-factory# log-ns# (.getLogger thread-repo# ^String (str log-ns#)))))]
        ~@body)))
 
 (defmacro with-logging-context [x & body]
