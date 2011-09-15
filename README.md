@@ -19,8 +19,9 @@ This library is dual-licensed under the Eclipse Public License, Version 1.0 and 
 Start by using ```:use``` (or ```:require```) in your namespace declaration (or similar).
 
     (ns my-ns
-      (:use clojure.tools.logging
-            [clj-logging-config.log4j :only logger]))
+      (:use 
+        clojure.tools.logging
+        clj-logging-config.log4j))
 
 Configure the logging system declaring a logger with ```set-logger!``` and just start using it.
 
