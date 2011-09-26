@@ -213,3 +213,6 @@ I hope this package will someday find its way into clojure.core/tools.logging. I
 
 For this reason I have licensed the package with EPL, the same as Clojure. (I usually use AGPLv3 because I believe it ensures greater freedom to developers transitively).
 
+## clojure.core/tools.logging version
+
+Currently, this library supports ```clojure.tools.logging``` 0.1.2. Updating to 0.2.* seems to break things.
