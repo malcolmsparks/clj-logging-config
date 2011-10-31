@@ -48,6 +48,10 @@ Or if you want to use the Log4J Java class, you can do that as well :-
 
 You can also set the appender to one of the appenders provided by the logging package you are using. For example, if you're using the log4j backend you can do this.
 
+    (set-logger! :out (org.apache.log4j.FileAppender. (org.apache.log4j.SimpleLayout.) "path-to-your-logfile"))
+
+Or, if you'd prefer to use a rolling log appender instead:
+
     (set-logger! :out (org.apache.log4j.DailyRollingFileAppender.))
 
 Or even provide your own appender function.
