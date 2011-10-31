@@ -12,15 +12,14 @@
 ;; software.
 
 (ns clj-logging-config.log4j
-  (:use clojure.contrib.pprint
-        clojure.tools.logging)
+  (:use clojure.tools.logging)
   (:require [clojure.java.io :as io])
   (:import (org.apache.log4j
             Logger ConsoleAppender EnhancedPatternLayout Level
             LogManager AppenderSkeleton Appender Layout Hierarchy
             SimpleLayout WriterAppender FileAppender NDC MDC)
            (org.apache.log4j.spi
-            RepositorySelector DefaultRepositorySelector RootLogger)
+            RepositorySelector DefaultRepositorySelector RootLogger LoggingEvent)
            (java.io OutputStream Writer File)))
 
 (defn ^Logger get-config-logger []

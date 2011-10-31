@@ -14,7 +14,6 @@
 (ns clj-logging-config.log4j.test-log4j
   (:use clojure.test
         clojure.tools.logging
-        clojure.contrib.pprint
         clj-logging-config.log4j
         clojure.contrib.with-ns)
   (:require [clojure.java.io :as io]))
@@ -35,7 +34,7 @@
        (let [ns# (create-ns (symbol "test"))]
          (with-ns ns#
            (clojure.core/refer-clojure)
-           (use 'clojure.tools.logging 'clj-logging-config.log4j 'clojure.contrib.pprint)
+           (use 'clojure.tools.logging 'clj-logging-config.log4j)
            ~@body))))
 
 (defmacro expect [expected & body]
