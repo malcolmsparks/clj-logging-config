@@ -12,8 +12,7 @@
 ;; software.
 
 (ns clj-logging-config.jul
-  (:use clojure.contrib.pprint
-        clojure.tools.logging)
+  (:use clojure.tools.logging)
   (:import (java.util.logging
             Logger Level LogManager Handler LogRecord
             Formatter SimpleFormatter ConsoleHandler FileHandler StreamHandler)

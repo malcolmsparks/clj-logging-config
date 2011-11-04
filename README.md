@@ -48,6 +48,10 @@ Or if you want to use the Log4J Java class, you can do that as well :-
 
 You can also set the appender to one of the appenders provided by the logging package you are using. For example, if you're using the log4j backend you can do this.
 
+    (set-logger! :out (org.apache.log4j.FileAppender. (org.apache.log4j.SimpleLayout.) "path-to-your-logfile"))
+
+Or, if you'd prefer to use a rolling log appender instead:
+
     (set-logger! :out (org.apache.log4j.DailyRollingFileAppender.))
 
 Or even provide your own appender function.
@@ -213,3 +217,6 @@ I hope this package will someday find its way into clojure.core/tools.logging. I
 
 For this reason I have licensed the package with EPL, the same as Clojure. (I usually use AGPLv3 because I believe it ensures greater freedom to developers transitively).
 
+## clojure.core/tools.logging version
+
+Currently, this library supports ```clojure.tools.logging``` 0.1.2. Updating to 0.2.* seems to break things.

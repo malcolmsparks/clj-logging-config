@@ -13,10 +13,10 @@
 (defproject clj-logging-config "1.7.0"
   :description "Easy logging configuration for Clojure."
 
-  :dependencies [[org.clojure/clojure "1.2.0"]
+  :dependencies [[org.clojure/clojure "1.3.0"]
                  [org.clojure/tools.logging "0.1.2"]
-                 [org.clojure/clojure-contrib "1.2.0"]]
-
+                 [org.clojure.contrib/with-ns "1.3.0-alpha4"]
+                 ]
   :dev-dependencies [[swank-clojure "1.2.0"]
                      [log4j/log4j "1.2.16"]]
   :source-path "src/main/clojure"
