@@ -12,16 +12,18 @@
 ;; software.
 
 (ns clj-logging-config.log4j
-  (:use clojure.contrib.pprint
-        clojure.tools.logging)
-  (:require [clojure.java.io :as io])
+  (:use
+   clojure.tools.logging)
+  (:require [clojure.java.io :as io]
+            clojure.tools.logging.impl)
   (:import (org.apache.log4j
             Logger ConsoleAppender EnhancedPatternLayout Level
             LogManager AppenderSkeleton Appender Layout Hierarchy
             SimpleLayout WriterAppender FileAppender NDC MDC)
            (org.apache.log4j.spi
-            RepositorySelector DefaultRepositorySelector RootLogger)
-           (java.io OutputStream Writer File)))
+            RepositorySelector DefaultRepositorySelector RootLogger LoggingEvent)
+           (java.io OutputStream Writer File)
+           ))
 
 (defn ^Logger get-config-logger []
   (Logger/getLogger (name (ns-name 'clj-logging-config.log4j))))
@@ -74,7 +76,7 @@
      (debug "Creating filter appender")
      (proxy [AppenderSkeleton] []
        (append [^LoggingEvent ev]
-               (when (filterfn (as-map ev)) (.doAppend ^Appender delegate ^LoggingEvent ev)))
+         (when (filterfn (as-map ev)) (.doAppend ^Appender delegate ^LoggingEvent ev)))
        (getName [] (.getName delegate))
        (close [] (.close delegate)))))
 
@@ -325,36 +327,36 @@ list with one entry."
                    :fatal org.apache.log4j.Level/FATAL})
 
 (deftype ThreadLocalLog [old-log-factory log-ns logger]
-  Log
-  (impl-enabled? [_ level]
-                 (or
-                  ;; Check original logger
-                  (impl-enabled? (impl-get-log old-log-factory log-ns) level)
-                  ;; Check thread-local logger
-                  (.isEnabledFor logger (or (log4j-levels level)
-                                            (throw (IllegalArgumentException. (str level)))))))
-  (impl-write! [_ level throwable message]
-               ;; Write the message to the original logger on the thread
-               (when-let [orig-logger (impl-get-log old-log-factory log-ns)]
-                 (impl-write! orig-logger level throwable message))
-               ;; Write the message to our thread-local logger
-               (let [l (or
-                        (log4j-levels level)
-                        (throw (IllegalArgumentException. (str level))))]
-                 (if-not throwable
-                   (.log logger l message)
-                   (.log logger l message throwable)))))
+  clojure.tools.logging.impl.Logger
+  (enabled? [_ level]
+    (or
+     ;; Check original logger
+     (enabled? (clojure.tools.logging.impl/get-logger old-log-factory log-ns) level)
+     ;; Check thread-local logger
+     (.isEnabledFor logger (or (log4j-levels level)
+                               (throw (IllegalArgumentException. (str level)))))))
+  (write! [_ level throwable message]
+    ;; Write the message to the original logger on the thread
+    (when-let [orig-logger (clojure.tools.logging.impl/get-logger old-log-factory log-ns)]
+      (clojure.tools.logging.impl/write! orig-logger level throwable message))
+    ;; Write the message to our thread-local logger
+    (let [l (or
+             (log4j-levels level)
+             (throw (IllegalArgumentException. (str level))))]
+      (if-not throwable
+        (.log logger l message)
+        (.log logger l message throwable)))))
 
 (defmacro with-logging-config [config & body]
-  `(let [old-log-factory# *log-factory*
+  `(let [old-log-factory# *logger-factory*
          thread-root-logger# (org.apache.log4j.spi.RootLogger. org.apache.log4j.Level/DEBUG)
          thread-repo# (org.apache.log4j.Hierarchy. thread-root-logger#)]
      (doall (map set-logger (map (partial as-logger* thread-repo#) (partition 2 ~config))))
-     (binding [*log-factory*
-               (reify LogFactory
-                      (impl-name [_] "clj-logging-config.thread-local-logging")
-                      (impl-get-log [_ log-ns#]
-                                    (ThreadLocalLog. old-log-factory# log-ns# (.getLogger thread-repo# ^String (str log-ns#)))))]
+     (binding [*logger-factory*
+               (reify clojure.tools.logging.impl.LoggerFactory
+                 (name [_] "clj-logging-config.thread-local-logging")
+                 (get-logger [_ log-ns#]
+                   (ThreadLocalLog. old-log-factory# log-ns# (.getLogger thread-repo# ^String (str log-ns#)))))]
        ~@body)))
 
 (defmacro with-logging-context [x & body]

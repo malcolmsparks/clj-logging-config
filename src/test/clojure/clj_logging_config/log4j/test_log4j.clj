@@ -14,10 +14,30 @@
 (ns clj-logging-config.log4j.test-log4j
   (:use clojure.test
         clojure.tools.logging
-        clojure.contrib.pprint
         clj-logging-config.log4j
-        clojure.contrib.with-ns)
+        )
   (:require [clojure.java.io :as io]))
+
+;; Copied from clojure.contrib.with-ns
+(defmacro with-ns
+  "Evaluates body in another namespace.  ns is either a namespace
+  object or a symbol.  This makes it possible to define functions in
+  namespaces other than the current one."
+  [ns & body]
+  `(binding [*ns* (the-ns ~ns)]
+     ~@(map (fn [form] `(eval '~form)) body)))
+
+;; Copied from clojure.contrib.with-ns
+(defmacro with-temp-ns
+  "Evaluates body in an anonymous namespace, which is then immediately
+  removed.  The temporary namespace will 'refer' clojure.core."
+  [& body]
+  `(do (create-ns 'sym#)
+       (let [result# (with-ns 'sym#
+                      (clojure.core/refer-clojure)
+                      ~@body)]
+         (remove-ns 'sym#)
+         result#)))
 
 (defmacro capture-stdout [& body]
   `(let [out# System/out
@@ -32,11 +52,10 @@
 
 (defmacro dolog [& body]
   `(do (reset-logging!)
-       (let [ns# (create-ns (symbol "test"))]
-         (with-ns ns#
+       (with-temp-ns
            (clojure.core/refer-clojure)
-           (use 'clojure.tools.logging 'clj-logging-config.log4j 'clojure.contrib.pprint)
-           ~@body))))
+           (use 'clojure.tools.logging 'clj-logging-config.log4j)
+           ~@body)))
 
 (defmacro expect [expected & body]
   `(is (= ~expected (capture-stdout (dolog ~@body)))))

@@ -84,7 +84,7 @@
 ;; re-evaluate each form.
 
 ;; Sometimes printing out the current configuration can help diagnose problems :-
-(pprint (get-logging-config))
+;; (pprint (get-logging-config))
 
 ;; TODO: Test agents, particular check whether MDCs are propagated to 'child'
 ;; threads as claimed by
