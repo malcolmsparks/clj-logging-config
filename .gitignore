@@ -1,4 +1,3 @@
 target/
 lib/
-/pom.xml
 /.lein-failures
