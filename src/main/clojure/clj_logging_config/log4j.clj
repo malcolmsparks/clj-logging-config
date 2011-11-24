@@ -331,7 +331,7 @@ list with one entry."
   (enabled? [_ level]
     (or
      ;; Check original logger
-     (enabled? (clojure.tools.logging.impl/get-logger old-log-factory log-ns) level)
+     (clojure.tools.logging.impl/enabled? (clojure.tools.logging.impl/get-logger old-log-factory log-ns) level)
      ;; Check thread-local logger
      (.isEnabledFor logger (or (log4j-levels level)
                                (throw (IllegalArgumentException. (str level)))))))
