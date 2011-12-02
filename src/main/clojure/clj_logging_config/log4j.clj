@@ -95,7 +95,7 @@
   (proxy [Layout] []
     (format [ev] (f (as-map ev)))))
 
-(defn as-level [level]
+(defn ^Level as-level [level]
   (cond
    (nil? level) nil
    (= :inherit level) nil
@@ -140,20 +140,22 @@ list with one entry."
     (map as-logger logger)
     (list (as-logger logger))))
 
-(defn as-layout [layout]
+(defn ^Layout as-layout [layout]
   (if (nil? layout) (SimpleLayout.) layout))
 
 (defn ensure-appender
-  ([logger leaf-logger]
+  ([^Logger logger ^Logger leaf-logger]
      (when (empty? (enumeration-seq (.getAllAppenders logger)))
        (let [parent (.getParent logger)]
          (if (and parent (.getAdditivity logger))
            (ensure-appender parent leaf-logger)
            (do
              (ensure-config-logging!)
-             (logf :debug "Must create an appender at %s because otherwise no logging would be emitted for %s" (.getName logger) (.getName leaf-logger))
+             (logf :debug
+                   "Must create an appender at %s because otherwise no logging would be emitted for %s"
+                   (.getName logger) (.getName leaf-logger))
              (.addAppender logger (create-console-appender (SimpleLayout.))))))))
-  ([logger] (ensure-appender logger logger)))
+  ([^Logger logger] (ensure-appender logger logger)))
 
 (defn
   set-logger
@@ -193,7 +195,7 @@ list with one entry."
            (.setEncoding encoding))
 
          (instance? File out)
-         (doto (WriterAppender. (as-layout actual-layout) ^Writer (java.io.FileWriter. out))
+         (doto (WriterAppender. (as-layout actual-layout) ^Writer (java.io.FileWriter. ^File out))
            (.setEncoding encoding))
 
          (instance? String out)
@@ -250,7 +252,7 @@ list with one entry."
 
 (defn _set-logger-level! [logger level]
   (ensure-config-logging!)
-  (for [logger (as-loggers logger)]
+  (for [^Logger logger (as-loggers logger)]
     (do
       (logf :debug "Set level for %s to %s" logger level)
       (.setLevel logger (as-level level)))))
@@ -264,7 +266,7 @@ list with one entry."
 
 (defn _set-logger-additivity! [logger value]
   (ensure-config-logging!)
-  (for [logger (as-loggers logger)]
+  (for [^Logger logger (as-loggers logger)]
     (do
       (logf :debug "Set additivity for %s to %s" logger value)
       (.setAdditivity logger value))))
@@ -294,14 +296,20 @@ list with one entry."
    :loggers
    (map (fn [logger]
           (-> logger
-              (update-in [:parent] (fn [^Logger parent] (.getName parent)))
+              (update-in [:parent] (fn [^Logger parent]
+                                     (when parent (.getName parent))))
               (dissoc :loggerRepository)
               (dissoc :hierarchy)
               (update-in [:chainedPriority] str)
               (update-in [:level] str)
               (update-in [:effectiveLevel] str)
               (update-in [:allAppenders] stringify-appenders)
-              (update-in [:priority] str))) (sort-by :name (map bean (enumeration-seq (LogManager/getCurrentLoggers)))))})
+              (update-in [:priority] str)))
+        (->>
+         (conj (enumeration-seq (LogManager/getCurrentLoggers))
+               (LogManager/getRootLogger))
+         (map bean)
+         (sort-by :name)))})
 
 (defn set-config-logging-level! [level]
   (ensure-config-logging!)
@@ -312,7 +320,7 @@ list with one entry."
 
 (defn ^Logger as-logger*
   "If a string is given, lookup the Logger, else return the parameter as-is."
-  [h [logger m]]
+  [^Hierarchy h [logger m]]
   [(cond (string? logger) (.getLogger h ^String logger)
          (contains? #{:root ""} logger) (.getRootLogger h)
          (= :config logger) (.getLogger h (name (ns-name 'clj-logging-config.log4j)))
@@ -326,7 +334,7 @@ list with one entry."
                    :error org.apache.log4j.Level/ERROR
                    :fatal org.apache.log4j.Level/FATAL})
 
-(deftype ThreadLocalLog [old-log-factory log-ns logger]
+(deftype ThreadLocalLog [old-log-factory log-ns ^Logger logger]
   clojure.tools.logging.impl.Logger
   (enabled? [_ level]
     (or
