@@ -195,7 +195,7 @@ list with one entry."
            (.setEncoding encoding))
 
          (instance? File out)
-         (doto (FileAppender. (as-layout actual-layout) ^String (.getAbsolutePath. out))
+         (doto (FileAppender. (as-layout actual-layout) ^String (.getAbsolutePath. ^File out))
            (.setEncoding encoding))
 
          (instance? String out)
