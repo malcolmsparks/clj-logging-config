@@ -306,8 +306,7 @@ list with one entry."
               (update-in [:allAppenders] stringify-appenders)
               (update-in [:priority] str)))
         (->>
-         (conj (enumeration-seq (LogManager/getCurrentLoggers))
-               (LogManager/getRootLogger))
+         (LogManager/getCurrentLoggers)
          (map bean)
          (sort-by :name)))})
 
