@@ -195,7 +195,7 @@ list with one entry."
            (.setEncoding encoding))
 
          (instance? File out)
-         (doto (WriterAppender. (as-layout actual-layout) ^Writer (java.io.FileWriter. out))
+         (doto (FileAppender. (as-layout actual-layout) ^String (.getAbsolutePath. out))
            (.setEncoding encoding))
 
          (instance? String out)
