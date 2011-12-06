@@ -307,6 +307,7 @@ list with one entry."
               (update-in [:priority] str)))
         (->>
          (LogManager/getCurrentLoggers)
+         (enumeration-seq)
          (map bean)
          (sort-by :name)))})
 
