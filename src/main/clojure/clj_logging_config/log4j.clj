@@ -198,6 +198,14 @@ list with one entry."
          (doto (FileAppender. (as-layout actual-layout) ^String (.getAbsolutePath. ^File out))
            (.setEncoding encoding))
 
+         (and (instance? java.net.URI out) (= (.getScheme out) "file"))
+         (doto (FileAppender. (as-layout actual-layout) ^String (.getPath (.toURL out)))
+           (.setEncoding encoding))
+
+         (and (instance? java.net.URL out) (= (.getScheme out) "file"))
+         (doto (FileAppender. (as-layout actual-layout) ^String (.getPath out))
+           (.setEncoding encoding))
+
          (instance? String out)
          (doto (WriterAppender. (as-layout actual-layout) ^Writer (java.io.FileWriter. (io/file out)))
            (.setEncoding encoding))
