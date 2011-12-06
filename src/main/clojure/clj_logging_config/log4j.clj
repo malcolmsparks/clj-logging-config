@@ -299,25 +299,33 @@ list with one entry."
             enumeration-seq
             (map bean))))
 
+(defn expand-logger- [logger]
+  (-> logger
+      (update-in [:parent] (fn [^Logger parent]
+                             (when parent (.getName parent))))
+      (dissoc :loggerRepository)
+      (dissoc :hierarchy)
+      (update-in [:chainedPriority] str)
+      (update-in [:level] str)
+      (update-in [:effectiveLevel] str)
+      (update-in [:allAppenders] stringify-appenders)
+      (update-in [:priority] str)))
+
+(defn expand-loggers- [loggers]
+  (->>
+   loggers
+   (map bean)
+   (sort-by :name)
+   (map expand-logger-)))
+
 (defn get-logging-config []
-  {:repository (bean (LogManager/getLoggerRepository))
-   :loggers
-   (map (fn [logger]
-          (-> logger
-              (update-in [:parent] (fn [^Logger parent]
-                                     (when parent (.getName parent))))
-              (dissoc :loggerRepository)
-              (dissoc :hierarchy)
-              (update-in [:chainedPriority] str)
-              (update-in [:level] str)
-              (update-in [:effectiveLevel] str)
-              (update-in [:allAppenders] stringify-appenders)
-              (update-in [:priority] str)))
-        (->>
-         (LogManager/getCurrentLoggers)
-         (enumeration-seq)
-         (map bean)
-         (sort-by :name)))})
+  {:repository (update-in (bean (LogManager/getLoggerRepository)) [:rootLogger] (fn [x] (expand-logger- (bean x))))
+   :loggers (expand-loggers- (enumeration-seq (LogManager/getCurrentLoggers)))})
+
+(defn get-loggers []
+  (expand-loggers- (cons (LogManager/getRootLogger)
+                         (enumeration-seq (LogManager/getCurrentLoggers)))))
+
 
 (defn set-config-logging-level! [level]
   (ensure-config-logging!)
@@ -365,8 +373,9 @@ list with one entry."
 
 (defmacro with-logging-config [config & body]
   `(let [old-log-factory# *logger-factory*
-         thread-root-logger# (org.apache.log4j.spi.RootLogger. org.apache.log4j.Level/DEBUG)
-         thread-repo# (org.apache.log4j.Hierarchy. thread-root-logger#)]
+         thread-root-logger# (RootLogger. Level/DEBUG)
+         thread-repo# (proxy [Hierarchy] [thread-root-logger#]
+                        (shutdown [] nil))]
      (doall (map set-logger (map (partial as-logger* thread-repo#) (partition 2 ~config))))
      (binding [*logger-factory*
                (reify clojure.tools.logging.impl.LoggerFactory
