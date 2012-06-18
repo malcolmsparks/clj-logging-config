@@ -160,8 +160,8 @@ list with one entry."
 (defn
   set-logger
   "Sets logging configuration for a logger, or list of loggers. Returns nil."
-  [[logger {:keys [name level out encoding pattern layout filter additivity header footer test]
-            :or {name "_default" level :info encoding "UTF-8" test true}
+  [[logger {:keys [name level out encoding pattern layout filter additivity header footer test append]
+            :or {name "_default" level :info encoding "UTF-8" test true append false}
             :as args}]]
 
   (ensure-config-logging!)
@@ -195,19 +195,19 @@ list with one entry."
            (.setEncoding encoding))
 
          (instance? File out)
-         (doto (FileAppender. (as-layout actual-layout) ^String (.getAbsolutePath ^File out))
+         (doto (FileAppender. (as-layout actual-layout) ^String (.getAbsolutePath ^File out) append)
            (.setEncoding encoding))
 
          (and (instance? java.net.URI out) (= (.getScheme out) "file"))
-         (doto (FileAppender. (as-layout actual-layout) ^String (.getPath (.toURL out)))
+         (doto (FileAppender. (as-layout actual-layout) ^String (.getPath (.toURL out)) append)
            (.setEncoding encoding))
 
          (and (instance? java.net.URL out) (= (.getScheme out) "file"))
-         (doto (FileAppender. (as-layout actual-layout) ^String (.getPath out))
+         (doto (FileAppender. (as-layout actual-layout) ^String (.getPath out) append)
            (.setEncoding encoding))
 
          (instance? String out)
-         (doto (WriterAppender. (as-layout actual-layout) ^Writer (java.io.FileWriter. (io/file out)))
+         (doto (WriterAppender. (as-layout actual-layout) ^Writer (java.io.FileWriter. (io/file out) append))
            (.setEncoding encoding))
 
          (or actual-layout (= out :console))
