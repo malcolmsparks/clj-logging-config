@@ -385,7 +385,8 @@ list with one entry."
        ~@body)))
 
 (defmacro with-logging-context [x & body]
-  `(let [x# ~x]
+  `(let [x# ~x
+         ctx# (into {} (. ~MDC getContext))]
      (try
        (if (map? x#)
          (doall (map (fn [[k# v#]] (. ~MDC put (name k#) v#)) x#))
@@ -393,7 +394,8 @@ list with one entry."
        ~@body
        (finally
         (if (map? x#)
-          (doall (map (fn [[k# v#]] (. ~MDC remove (name k#))) x#))
+          (doall (map (fn [[k# v#]]
+                        (. ~MDC remove (name k#))
+                        (when-let [old# (get ctx# (name k#))]
+                          (. ~MDC put (name k#) old#))) x#))
           (. ~NDC pop))))))
-
-
