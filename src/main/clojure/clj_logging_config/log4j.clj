@@ -254,7 +254,7 @@ list with one entry."
 
 (defmacro set-logger! [& [logger & args :as allargs]]
   (cond (or (empty? allargs) (keyword? logger))
-        `(set-loggers! (name (ns-name ~*ns*)) ~(apply hash-map allargs))
+        `(set-loggers! (name (ns-name *ns*)) ~(apply hash-map allargs))
         :otherwise
         `(set-loggers! ~logger ~(apply hash-map args))))
 
@@ -267,7 +267,7 @@ list with one entry."
 
 (defmacro set-logger-level!
   ([level]
-     `(set-logger-level! (name (ns-name ~*ns*)) ~level))
+     `(set-logger-level! (name (ns-name *ns*)) ~level))
   ([logger level]
      `(do
         (_set-logger-level! ~logger ~level))))
@@ -281,7 +281,7 @@ list with one entry."
 
 (defmacro set-logger-additivity!
   ([value]
-     `(set-logger-additivity! (name (ns-name ~*ns*)) ~value))
+     `(set-logger-additivity! (name (ns-name *ns*)) ~value))
   ([logger value]
      `(do
         (_set-logger-additivity! ~logger ~value))))
