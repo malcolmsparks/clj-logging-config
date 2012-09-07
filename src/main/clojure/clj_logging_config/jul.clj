@@ -166,7 +166,7 @@
 
 (defmacro set-logger-level!
   ([level]
-     `(_set-logger-level! (name (ns-name ~*ns*)) ~level))
+     `(_set-logger-level! (name (ns-name *ns*)) ~level))
   ([logger level]
      `(do
         (_set-logger-level! ~logger ~level))))
@@ -178,7 +178,7 @@
 
 (defmacro set-logger-use-parent-handlers!
   ([value]
-     `(_set-logger-use-parent-handlers! (name (ns-name ~*ns*)) ~value))
+     `(_set-logger-use-parent-handlers! (name (ns-name *ns*)) ~value))
   ([logger value]
      `(do
         (_set-logger-use-parent-handlers! ~logger ~value))))
