@@ -389,7 +389,7 @@ list with one entry."
          ctx# (into {} (. ~MDC getContext))]
      (try
        (if (map? x#)
-         (doall (map (fn [[k# v#]] (. ~MDC put (name k#) v#)) x#))
+         (doall (map (fn [[k# v#]] (when-not (nil? v#) (. ~MDC put (name k#) v#))) x#))
          (. ~NDC push (str x#)))
        ~@body
        (finally
