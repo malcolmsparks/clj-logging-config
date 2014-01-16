@@ -156,11 +156,11 @@ list with one entry."
                    (.getName logger) (.getName leaf-logger))
              (.addAppender logger (create-console-appender (SimpleLayout.))))))))
   ([^Logger logger] (ensure-appender logger logger)))
-
 (defn
   set-logger
   "Sets logging configuration for a logger, or list of loggers. Returns nil."
-  [[logger {:keys [name level out encoding pattern layout filter additivity header footer test append]
+  [[logger {:keys [name level out encoding pattern layout 
+                   filter additivity header footer test append threshold]
             :or {name "_default" level :info encoding "UTF-8" test true append false}
             :as args}]]
 
@@ -225,6 +225,8 @@ list with one entry."
     (doall (for [^Logger logger (as-loggers logger)]
              (do
                (when appender
+                 (when threshold
+                   (.setThreshold appender (as-level threshold)))
                  (.removeAppender logger ^String name)
                  (logf :debug "Adding appender named %s to logger %s" name (.getName logger))
                  (.addAppender logger ((comp (wrap-for-filter filter)
