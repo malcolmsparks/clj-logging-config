@@ -163,4 +163,10 @@
 
             (info "The user is billy")
             (info "The password is nighthawk")
-            (info "The name is fred"))))
+            (info "The name is fred")))
+
+  (testing "with-logging-context with null values does not throw exception"
+    (set-logger! "test")
+    (with-logging-context {:kikka 123
+                           :kukka nil}
+        (info "safe logging here"))))
