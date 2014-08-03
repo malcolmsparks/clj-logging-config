@@ -47,7 +47,7 @@
 
 (defn create-handler [f]
   (proxy [Handler] []
-    (.publish [^LogRecord rec] (f (as-map rec)))
+    (publish [^LogRecord rec] (f (as-map rec)))
     (close [] nil)))
 
 (defn create-formatter [formatfn]
