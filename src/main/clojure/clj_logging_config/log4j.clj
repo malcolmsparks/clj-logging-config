@@ -181,7 +181,7 @@ list with one entry."
         ;; Try to infer whether an appender is required for this logger
         ;; If the out parameter is given, or a layout is given, then an appender
         ;; needs to be added.
-        ^Appender appender
+        ^AppenderSkeleton appender
         (cond
          (instance? Appender out) out
          (fn? out) (create-appender-adapter out name)
