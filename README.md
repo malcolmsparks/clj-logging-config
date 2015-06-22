@@ -133,7 +133,7 @@ Occasionally it's useful to set the same configuration at multiple nodes of the 
 
 ### Logger names
 
-Java logging packages conventionally organise a hierarchy of loggers that mirrors the Java package hierarchy. The <code>clojure.tools.logging</code> module follows this convention and so does <code>clj-logging-config<code>. If you don't specify a logger name it defaults to the current namespace when you use <code>set-logger!</code>. But you can override this if you need to.
+Java logging packages conventionally organise a hierarchy of loggers that mirrors the Java package hierarchy. The <code>clojure.tools.logging</code> module follows this convention and so does <code>clj-logging-config</code>. If you don't specify a logger name it defaults to the current namespace when you use <code>set-logger!</code>. But you can override this if you need to.
 
     (set-logger! "my-loggger" :level :info)
 
