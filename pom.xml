@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>clj-logging-config</groupId>
   <artifactId>clj-logging-config</artifactId>
-  <version>1.9.12</version>
+  <version>1.9.13</version>
 
   <name>${project.artifactId}</name>
 
