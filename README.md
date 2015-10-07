@@ -133,7 +133,7 @@ Occasionally it's useful to set the same configuration at multiple nodes of the 
 
 ### Logger names
 
-Java logging packages conventionally organise a hierarchy of loggers that mirrors the Java package hierarchy. The <code>clojure.tools.logging</code> module follows this convention and so does <code>clj-logging-config<code>. If you don't specify a logger name it defaults to the current namespace when you use <code>set-logger!</code>. But you can override this if you need to.
+Java logging packages conventionally organise a hierarchy of loggers that mirrors the Java package hierarchy. The <code>clojure.tools.logging</code> module follows this convention and so does <code>clj-logging-config</code>. If you don't specify a logger name it defaults to the current namespace when you use <code>set-logger!</code>. But you can override this if you need to.
 
     (set-logger! "my-loggger" :level :info)
 
@@ -192,7 +192,7 @@ Often you want to log on a per-thread (or per-agent) basis. Perhaps you are writ
 
 This constructs an independent logging hierarchy. If you want to use this feature, you must use ```clojure.tools.logging``` rather than ```clojure.contrib.logging```, since the latter uses memoisation to cache loggers which negatively impacts the operation of thread-local logging.
 
-Also, it's important that you do not re-load the ```clojure.tools.logging``` namespace after loading ```clj-config-logging.log4j```. If you reload ```clojure.tools.logging``` its protocols will be redefined and the custom implementation in ```clj-config-logging.log4j``` will be implementing the old definition rather than the new one. The upshot of this is that you may see this error message.
+Also, it's important that you do not re-load the ```clojure.tools.logging``` namespace after loading ```clj-logging-config.log4j```. If you reload ```clojure.tools.logging``` its protocols will be redefined and the custom implementation in ```clj-logging-config.log4j``` will be implementing the old definition rather than the new one. The upshot of this is that you may see this error message.
 
     java.lang.IllegalArgumentException: No implementation of method: :impl-enabled? of protocol: #'clojure.tools.logging/Log found for class: clj-logging-config.log4j.ThreadLocalLog
 
