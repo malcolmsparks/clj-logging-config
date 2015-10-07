@@ -19,7 +19,7 @@ This library is dual-licensed under the Eclipse Public License, Version 1.0 and 
 Start by using ```:use``` (or ```:require```) in your namespace declaration (or similar).
 
     (ns my-ns
-      (:use 
+      (:use
         clojure.tools.logging
         clj-logging-config.log4j))
 
@@ -40,11 +40,11 @@ Or this.
 
 In the same way you can set the level of the logger. For example, so that the logger only prints warnings, you can do this :-
 
-    (set-logger! :level :warn) 
+    (set-logger! :level :warn)
 
 Or if you want to use the Log4J Java class, you can do that as well :-
 
-    (set-logger! :level org.apache.log4j.Level/WARN) 
+    (set-logger! :level org.apache.log4j.Level/WARN)
 
 You can also set the appender to one of the appenders provided by the logging package you are using. For example, if you're using the log4j backend you can do this.
 
@@ -60,13 +60,13 @@ You can also set filters in the same way. Filters are useful but rarely used in 
 
 For filters and appenders the underlying logging event is converted to a Clojure map (with the original event bound to the <code>:event</code> key, should you need it)
 
-For completeness you can also set the additivity of the logger - the default is true but you can set it to false. Addivity is described in the Log4J user-guide - so we won't repeat it here.
+For completeness you can also set the additivity of the logger - the default is false but you can set it to true. Addivity is described in the Log4J user-guide - so we won't repeat it here.
 
-    (set-logger! :additivity false)
+    (set-logger! :additivity true)
 
 It (almost) goes without saying that you can combine all these options together :-
 
-    (set-logger! :level :warn 
+    (set-logger! :level :warn
                  :additivity false
                  :pattern "%p - %m%n"
                  :filter (constantly true))
@@ -89,7 +89,7 @@ clj-logging-config is designed to get you up and running with logging as soon as
 
 ### Choosing your logging backend
 
-There are two broadly equivalent modules to support both log4j and java.util.logging. If you need to use both simultaneously (eg. as part of an integrated system where don't have control over which logging API your dependencies use), it is strongly suggested you use the bridging capabilities of slf4j. 
+There are two broadly equivalent modules to support both log4j and java.util.logging. If you need to use both simultaneously (eg. as part of an integrated system where don't have control over which logging API your dependencies use), it is strongly suggested you use the bridging capabilities of slf4j.
 
 The primary author has resisted the temptation to merge the code for the two packages into a single system- this would make the code easier to maintain but at the expense of being easy to read. This would favour optimising the experience of the author rather than the readers and maintainers. Since I expect and hope there to be more readers than authors, I have avoided this step. Also, there are subtle differences between log4j and java.util.logging and it is better that the code to support them is held in separate namespaces that share nothing between them.
 
@@ -101,12 +101,12 @@ Again, if you just can't make up your mind about which package to use and need t
 
 A <code>log4j.properties</code> (or <code>log4j.xml</code>) file configures multiple loggers as the same time. You can too with <code>set-loggers!</code> :-
 
-    (set-loggers! 
+    (set-loggers!
 
-        "com.malcolmsparks.foo" 
+        "com.malcolmsparks.foo"
         {:level :info :pattern "%m"}
 
-        "com.malcolmsparks.bar" 
+        "com.malcolmsparks.bar"
         {:level :debug})
 
 #### Why the bang?
@@ -123,12 +123,12 @@ By default, appenders are added. The problem is that in some Clojure programming
 
 Occasionally it's useful to set the same configuration at multiple nodes of the logger hierarchy. For example, if you want to select 2 or more sub-packages to act as a single logger for the purposes of a debugging session. You can do this by replacing the logger name with a list.
 
-    (set-loggers! 
+    (set-loggers!
 
         ["com.malcolmsparks.foo" "com.malcolmsparks.zip"]
         {:level :info :pattern "%m"}
 
-        "com.malcolmsparks.bar" 
+        "com.malcolmsparks.bar"
         {:level :debug})
 
 ### Logger names
@@ -168,7 +168,7 @@ Using the MDC feature is almost identical. Just use a map rather than a string, 
                            :parentid 10}
         (with-logging-context {:customer "Fred"}
             (info "Hello")))
-    
+
 ## Logging what clj-logging-config is doing
 
 You can see what is happening under the covers by setting a logger against the special ```:config``` logger.
@@ -177,10 +177,10 @@ You can see what is happening under the covers by setting a logger against the s
 
 Or as part of a ```set-loggers!``` call.
 
-    (set-loggers! 
+    (set-loggers!
         :config {:level :debug}
-        "user" {:level :debug :out :console})        
-    
+        "user" {:level :debug :out :console})
+
 ## Thread-local logging
 
 Often you want to log on a per-thread (or per-agent) basis. Perhaps you are writing a job processing system and want a separate log file for each job. By default neither _log4j_ nor _java.util.logging_ support this without a lot of programmatic extension. Clojure's macro system makes this fairly straight-forward.
@@ -212,4 +212,3 @@ If you want to dive into the code to see how it works, ensure you are familiar w
 I hope this package will someday find its way into clojure.core/tools.logging. I think the NDC and MDC macros belong in the ```clojure.tools.logging``` package itself, with the configuration stuff in a new package, perhaps ```clojure.tools.logging.configuration```.
 
 For this reason I have licensed the package with EPL, the same as Clojure. (I usually use AGPLv3 because I believe it ensures greater freedom to developers transitively).
-
