@@ -207,7 +207,7 @@ list with one entry."
            (.setEncoding encoding))
 
          (instance? String out)
-         (doto (WriterAppender. (as-layout actual-layout) (java.io.FileWriter. ^File out ^Boolean append))
+         (doto (WriterAppender. (as-layout actual-layout) (java.io.FileWriter. ^String out ^Boolean append))
            (.setEncoding encoding))
 
          (or actual-layout (= out :console))
