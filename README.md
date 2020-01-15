@@ -1,3 +1,8 @@
+
+# Status: Withdrawn
+
+This library depends on log4j 1.2 which is end-of-line and has known security vulnerabilities. Please do not use. It is kept here for reference.
+
 Copyright (c) Malcolm Sparks. All rights reserved.
 
 # Log configuration for Clojure
